@@ -1,0 +1,282 @@
+#
+# configure the Retrieval Augmented Generation system here
+# (in this file are the default settings/default values)
+#
+vars:
+  #
+  # This section is used to define variables that can be used in the latter configuration
+  # with "${var.<var_name>}". It's only working for strings.
+  #
+  # Attention: The replacement is case sensitive.
+  #
+  # The values in this section may not contain any other variables.
+  #
+
+  # base directory for the data (databases, crawled/downloaded content, ...)
+  DATA_DIR: "./data"
+
+config:
+  common:
+    # LLMs used for the response generation and other tasks
+    chat_llms:
+      # Instance(s) of (subtype of) type langchain_core.language_models.chat_models.BaseChatModel
+      #
+      # class=<module>.<chat-class>
+
+      # OpenAI Chat
+      # For args/parameters see: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
+      ChatOpenAI_default_llm:
+        class: langchain_openai.ChatOpenAI        
+        args:
+          # you can overwrite, e.g. "model_name" with environment variable:
+          #   export RAG_CONFIG__COMMON__DEFAULT_LLM_WITH_STREAMING__ChatOpenAI__args__model_name="gpt-ais-invalid-model"
+          model_name: "gpt-4o-mini"
+          temperature: 0.2
+          streaming: False
+          #api_key: "<YOUR_OPENAI_API_KEY>"
+          #api_key: "${env.OPENAI_API_KEY}"
+          #base_url: "https://api.openai.com/v1"
+          #base_url: "https://your.openai-compatible-api.example.com/v1"
+
+      ChatOpenAI_default_llm_with_streaming:
+        class: langchain_openai.ChatOpenAI
+        args:
+          model_name: "gpt-4o-mini"
+          temperature: 0.2
+          streaming: True
+
+      ChatOpenAI_strict_llm:
+        class: langchain_openai.ChatOpenAI
+        args:
+          model_name: "gpt-4o-mini"
+          temperature: 0
+          streaming: False
+
+
+    # Embeddings LLM used indexing and for the retrieval
+    embedding_llm:
+      # Instance of (subtype of) type langchain_core.embeddings.Embeddings
+      #
+      # class=<module>.<chat-class>
+
+      # OpenAI Embeddings
+      # For args/parameters see: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/embeddings/base.py
+      class: langchain_openai.embeddings.OpenAIEmbeddings
+      args:
+        # Important: If the embedding model changes, the index must be rebuilt!!!
+        model: "text-embedding-3-small"
+        #api_key: "<YOUR_OPENAI_API_KEY>"
+        #base_url: "https://api.openai.com/v1"
+        #base_url: "https://your.openai-compatible-api.example.com/v1"
+    embedding_model_id: "openai/text-embedding-3-small-v101"
+
+
+    databases:
+      # Vector database - to store and to search for embeddings,
+      # instance of (subtype of) type langchain_core.vectorstores.VectorStore
+      
+      
+      # TODO: CONFIG CURRENTLY NOT USED - Vectorstore is hard-coded in factory.vectorstore_factory.py!!!
+      vectorstore:
+        # class=<module>.<chat-class>
+
+        # Chroma - requires package: chromadb (used by FlaxiRAG)
+        #class: langchain_community.vectorstores.Chroma
+        #args:
+        #  persist_directory: "${var.DATA_DIR}/rag-vectorstore-chroma-data/rag.chroma.db"
+        #  collection_name: "rag-chroma"
+        #embedding_function_arg_name: embedding_function
+
+        # Weaviate - requires package: weaviate-client
+        class: langchain_community.vectorstores.Weaviate
+
+        weaviate_host: "127.0.0.1"
+        weaviate_port: 8080
+        weaviate_grpc_port: 50051
+
+
+      # SQL database - to store anything else (e.g. documents snippets, ...)
+      # (Uses PEP 249 - Database API Specification 2.0 - https://peps.python.org/pep-0249/),
+      # instance of (subtype of) type _typeshed.dbapi.DBAPIConnection
+      sql_database:
+        # connect=<module>.<connect-function>
+        connect: sqlite3.connect
+        args:
+          # path to the SQLite database file
+          database: "${var.DATA_DIR}/rag-sql-database/rag.sqlite3.db"
+          # other settings
+          check_same_thread: false      
+
+      # Sqlite3 - requires package: sqlite3
+      #sql_database:
+      #  connect: sqlite3.connect
+      #  args:
+      #    # path to the SQLite database file
+      #    database: "/path/to/database/file.db"
+      #    # other settings
+      #    check_same_thread: false
+
+      # PostgreSQL- requires package: psycopg2-binary or psycopg2
+      #sql_database:    # NOT TESTED YET!!!
+      #  connect: psycopg2.connect
+      #  args:
+      #    host: "localhost"
+      #    port: 5432
+      #    database: "db_name"
+      #    user: "db_user"
+      #    password: "db_password"
+
+      # MySQL - requires package: mysql-connector-python
+      #sql_database:   # NOT TESTED YET!!!
+      #  connect: mysql.connector.connect
+      #  args:
+      #    host: "localhost"
+      #    port: 3306
+      #    database: "db_name"
+      #    user: "db_user"
+      #    password: "db_password"
+
+      # MariaDB - requires package: mariadb (+OS package libmariadb-dev)
+      #sql_database:   # NOT TESTED YET!!!
+      #  connect: mariadb.connect
+      #  args:
+      #    host: "localhost"
+      #    port: 3306
+      #    database: "db_name"
+      #    user: "db_user"
+      #    password: "db_password"
+
+
+  rag_loading:
+    enabled: true
+
+    # minimim time between loading/indexing runs, in seconds
+    load_every_seconds: 3600        # 1 hour = 3600 seconds
+
+    # The following loader types are supported:
+    # - "BlobLoader" - to load content files
+    #     The "class" is of type langchain_community.document_loaders.[blob_loaders.schema.]BlobLoader.
+    #     The loader is used together with the DefaultBlobParser
+    #     (of type langchain_community.document_loaders.BaseBlobParser).
+    #     Example classes are:
+    #       - WgetBlobLoader
+    #       - langchain_community.document_loaders.blob_loaders.file_system.FileSystemBlobLoader
+    #       - langchain_community.document_loaders.blob_loaders.cloud_blob_loader.CloudBlobLoader
+    #         (supports AWS "s3://", Azure "az://", Google Cloud "gs://", and local file "file://" schemes)
+    # - "BaseLoader" - to load the documents
+    #     The "class" is of type langchain_community.document_loaders.BaseLoader
+    #     with is the base of all "normal" document loader in Langchain..
+    loaders:
+      # Load HTML test documents from a website
+      html-example-hapke-com-loader:
+        enabled: true
+        type: "BlobLoader"
+        # class=<module>.<blob-loader-class>
+        class: document_loader_service.tools.WgetBlobLoader
+        args:
+          url: "https://hapke.com/"
+          base_url: "https://hapke.com/"
+          depth: 2
+          max_pages: 10
+          foo: "bar"
+          dir: "./"
+          # Optionally, provide a full command line to execute.
+          # In this command line, you can reference the other args as variables "${arg.<ARG-NAME>}".
+          #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
+
+      # Load PDf test document from a website
+      pdf-example-loader:
+        enabled: true
+        type: "BlobLoader"
+        # class=<module>.<blob-loader-class>
+        class: document_loader_service.tools.WgetBlobLoader
+        args:
+          url: "https://unec.edu.az/application/uploads/2014/12/pdf-sample.pdf"
+          base_url: "https://unec.edu.az/application/uploads/"
+          depth: 0
+          max_pages: 1
+          dir: "./unec.edu.az/"
+          # Optionally, provide a full command line to execute.
+          # In this command line, you can reference the other args as variables "${arg.<ARG-NAME>}".
+          #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
+
+
+      # Load test documents from a GitHub folder
+      project-github-testdocs-loader:
+        enabled: false
+        type: "BlobLoader"
+        # class=<module>.<blob-loader-class>
+        class: document_loader_service.tools.WgetBlobLoader
+        args:
+          url: "https://example.com/"
+          base_url: "https://example.com/foo"
+          depth: 3
+          max_pages: 1000
+          foo: "bar"
+          dir: "./"
+          # Optionally, provide a full command line to execute.
+          # In this command line, you can reference the other args as variables "${arg.<ARG-NAME>}".
+          #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
+
+      test-filesystemblob-loader-loader:
+        enabled: false
+        type: "BlobLoader"
+        # class=<module>.<blob-loader-class>
+        class: langchain_community.document_loaders.blob_loaders.FileSystemBlobLoader
+        #class: langchain_community.document_loaders.blob_loaders.file_system.FileSystemBlobLoader
+        args:
+          path: "./input-data/test-data"
+          glob: "*.md"
+          show_progress: true
+
+      # example URLs to crawl:
+        #"https://dance123.org/",
+        #"https://file-examples.com/storage/fe44eeb9cb66ab8ce934f14/2017/04/file_example_MP4_480_1_5MG.mp4",
+        #"https://lilianweng.github.io/posts/2023-06-23-agent/",
+        #"https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/",
+        #"https://lilianweng.github.io/posts/2023-10-25-adv-attack-llm/",
+
+  rag_indexing:
+    enabled: true
+
+
+  rag_response:
+    # select the LLMs used for the response generation
+    default_chat_llm: ChatOpenAI_default_llm
+    default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming
+    document_grader_chat_llm: ChatOpenAI_strict_llm
+    rewrite_question_chat_llm: ChatOpenAI_strict_llm
+
+    # Only the first user message of a chat is handled as a question and enriched with retrieved documents (DEFAULT):
+    #   enrich_all_user_messages_with_retrieved_documents: false
+    #
+    # Each user message of a chat is handled as a separate question and enriched with retrieved documents
+    #   enrich_all_user_messages_with_retrieved_documents: true
+    enrich_all_user_messages_with_retrieved_documents: false
+
+
+  #embedding_and_indexing:
+  #  enabled: true
+  #  embedding_model: "bert-base-uncased"
+  #  index_path: "/data/aisbreaker-workspace/hapkecom-github/flexi-rag/index"
+
+  #vector_search:
+  #  enabled: true
+  #  index_path: "/data/aisbreaker-workspace/hapkecom-github/flexi-rag/index"
+  #  similarity_threshold: 0.7
+
+  #string_keyword_search:
+  #  enabled: true
+  #  index_path: "/data/aisbreaker-workspace/hapkecom-github/flexi-rag/index"
+
+  #final_llm_processing:
+  #  enabled: true
+  #  model: "gpt2"
+  #  max_length: 100
+  #  temperature: 0.8
+
+
+# test entries without any semantics:
+test:
+  value: 1
+  valuestr: "test"

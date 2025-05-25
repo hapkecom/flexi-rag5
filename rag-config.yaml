@@ -1,0 +1,7 @@
+# here you can overwrite values of the default-values.yaml
+
+name: Bruno
+
+test:
+  #value: 99
+  value2: 9999

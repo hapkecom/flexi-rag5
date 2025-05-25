@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# TODO:
+# Please replace "your_project_name", "Your Name", and "your_email@example.com" ...
+
+[project]
+name = "AI RAG"
+version = "0.1.0"
+description = "A brief description of your project"
+authors = [
+    { name = "Your Name", email = "your_email@example.com" }
+]
+license = "MIT"
+readme = "README.md"
+keywords = ["AI", "RAG"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+# TODO: Add version constraints for your dependencies
+#       examples: 'cryptography==41.0.1', 'requests>=2.26.0'
+dependencies = [
+    "fastapi",
+    "pydantic",
+    "langgraph",
+    "langserve",
+    # Dependencies from external sources like GitHub might need to be handled differently
+    "langchain_community",
+    "langchain-openai",
+    "langchain-cohere",
+    "langchainhub",
+    "chromadb",
+    "langchain",
+    "langgraph", # Duplicate, already listed above
+    "tavily-python",
+    "tiktoken",
+]
