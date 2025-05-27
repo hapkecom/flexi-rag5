@@ -167,25 +167,8 @@ config:
     #     The "class" is of type langchain_community.document_loaders.BaseLoader
     #     with is the base of all "normal" document loader in Langchain..
     loaders:
-      # Load HTML test documents from a website
-      html-example-hapke-com-loader:
-        enabled: true
-        type: "BlobLoader"
-        # class=<module>.<blob-loader-class>
-        class: document_loader_service.tools.WgetBlobLoader
-        args:
-          url: "https://hapke.com/"
-          base_url: "https://hapke.com/"
-          depth: 2
-          max_pages: 10
-          foo: "bar"
-          dir: "./"
-          # Optionally, provide a full command line to execute.
-          # In this command line, you can reference the other args as variables "${arg.<ARG-NAME>}".
-          #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
-
       # Load PDf test document from a website
-      pdf-example-loader:
+      test-pdf-wgetblobloader-loader:
         enabled: true
         type: "BlobLoader"
         # class=<module>.<blob-loader-class>
@@ -218,8 +201,8 @@ config:
           # In this command line, you can reference the other args as variables "${arg.<ARG-NAME>}".
           #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
 
-      test-filesystemblob-loader-loader:
-        enabled: false
+      test-markdown-filesystemblobloader-loader:
+        enabled: true
         type: "BlobLoader"
         # class=<module>.<blob-loader-class>
         class: langchain_community.document_loaders.blob_loaders.FileSystemBlobLoader

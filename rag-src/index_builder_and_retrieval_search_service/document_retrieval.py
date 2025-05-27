@@ -46,7 +46,9 @@ async def get_relevant_documents(question: str) -> List[Document]:
     # Retrive documents
     vectorStore = get_vectorstore()
     docs = vectorStore.similarity_search(question, k=4)
-    logger.debug("Found "+str(len(docs))+" docs in vectorstore (un-graded candidates)")
+    logger.debug(f"XXXXX Found {str(len(docs))} docs in vectorstore (un-graded candidates) for question: 'question'")
+    for doc in docs:
+        logger.debug(f"doc={doc.metadata} content='{doc.page_content[:1000]}...'")
     # TODO: remove old code:
     #vectorStoreRetriever = get_vectorstore_retriever()
     #docs = vectorStoreRetriever.get_relevant_documents(question) # LangChainDeprecationWarning: The method `BaseRetriever.get_relevant_documents` was deprecated in langchain-core 0.1.46 and will be removed in 0.3.0. Use invoke instead.

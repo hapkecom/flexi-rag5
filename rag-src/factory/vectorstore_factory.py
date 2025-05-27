@@ -51,7 +51,7 @@ def get_vectorstore_NOT_USED() -> VectorStore:
     # Action: Create instance
     return call_function_or_constructor(module_and_class, class_kwargs, context_str_for_logging)
 
-def get_vectorstore_stats(collection_suffix: str = "default_collection") -> str:
+def get_vectorstore_stats(collection_suffix: str = "default_collection", log_all_entries: bool = False) -> str:
     weaviate_client = get_weaviate_client()
     global collection_prefix
 
@@ -64,14 +64,21 @@ def get_vectorstore_stats(collection_suffix: str = "default_collection") -> str:
                 return f"Collection '{collection_name}' does not exist."
             # Action
             objs = weaviate_client.collections.get(collection_name)
-            return f"{len(objs)} objects in vectorStore collection '{collection_name}'"
+            result = ""
+            if log_all_entries:
+                result +=     f"xxxxxxxx Collection '{collection_name}' contains the following {len(objs)} objects:\n"
+                for obj in objs.iterator(include_vector=False):
+                    result += f"    xxxx Object ID: {obj.uuid}, Properties: {obj.properties}\n"
+            else:
+                result = f"xxxxxxxx Collection '{collection_name}' contains {len(objs)} objects."
+            return result
         else:
             return "No (Weaviate) collection available."
     else:
         return "No (Weaviate) client available."
 
 def print_vectorstore_stats(collection_suffix: str = "default_collection") -> None:
-    stats = get_vectorstore_stats(collection_suffix)
+    stats = get_vectorstore_stats(collection_suffix, True)
     logger.info(stats)
 
 

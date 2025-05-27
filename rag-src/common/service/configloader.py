@@ -48,6 +48,8 @@ settings = Dynaconf(
     envvar_prefix="RAG"
 )
 
+print(f"Loading configuration ... with Dynaconf settings: {str(settings.as_dict())}")
+
 # magic value
 _no_default = "_NO_DEFAULT_VALUE_PLACEHOLDER_sdknfcw9845cvnhkjrvzh6"
 
@@ -191,10 +193,7 @@ def replaceVarsInDict(aDict: Dict, vars: Dict[str,str]) -> Dict:
 
 # Accessing a setting . trigger loading now to see config errors here
 # Hint: info-logging is disabled here:
-logger.info(f"name={settings.name}")
 logger.info(f"config.rag_loading.enabled={settings.config.rag_loading.enabled}")
-logger.info(f"test.value={settings.test.value}")
-logger.info(f"test.value2={settings.test.value2}")
 
 #print(f"config.common.databases.vectorstore.args.persist_directory: {deep_get(settings, 'config.common.databases.vectorstore.args.persist_directory')}")
 

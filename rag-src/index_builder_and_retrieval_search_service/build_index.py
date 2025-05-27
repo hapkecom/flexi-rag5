@@ -115,14 +115,16 @@ def indexing_single_run():
     # process all documents from the queue
     process_all_plobs_from_queue_worker(index_build_id)
 
-    # wait until all documents are completely processed
-    #downloadedDocumentsToProcessQueue.join()
-    # NOT NEEDED: everything will finish by itself when done
+    # wait until all documents are completely processed - needed before we can clean the vectorStore
+    downloadedPlogsToProcessQueue.join()
+    logger.info(f"===== indexing_single_run() ALL DOCUMENTS PROCESSED (#{indexing_single_run_counter}, '{index_build_id}') =====")
 
     # cleanup of vectorStore
     logger.info(f"===== indexing_single_run() RESULTS BEFORE CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
     print_vectorstore_stats()
     clean_vectorstore(index_build_id)
+    logger.info(f"===== indexing_single_run() RESULTS AFTER CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    print_vectorstore_stats()
 
     # single run done
     logger.info(f"===== indexing_single_run() RESULTS (#{indexing_single_run_counter}, '{index_build_id}') =====")
@@ -290,7 +292,7 @@ def _enrich_plob_document(index_build_id: str,
 
     # extract metadata from (parent) document
     plob_id = plob.id
-    document_source = plob.metadata['source']
+    document_source = plob.metadata.get('source', None)
     if document_source is None:
         document_source = plob.url
     document_title = plob.metadata.get('title', None)
