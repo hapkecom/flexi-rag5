@@ -70,6 +70,24 @@ config:
         #base_url: "https://your.openai-compatible-api.example.com/v1"
     embedding_model_id: "openai/text-embedding-3-small-v101"
 
+    # Example with Ollama:
+    #
+    #embedding_llm:
+    #  # Instance of (subtype of) type langchain_core.embeddings.Embeddings
+    #  #
+    #  # class=<module>.<chat-class>
+    #
+    #  # Ollama Embeddings
+    #  class: langchain_ollama.OllamaEmbeddings
+    #  args:
+    #    # Important: If the embedding model changes, the index must be rebuilt!!!
+    #    model: "nomic-embed-text:v1.5"
+    #    base_url: "http://ollama.example.com:11434"
+    #    # handling of 'kwargs_header_authorization' is a non-generic, dirty hack in llm_factory.py:
+    #    kwargs_header_authorization: "Bearer MY-SECRET-TOKEN"
+    #embedding_model_id: "ollama/nomic-embed-text:v1.5"
+
+
 
     databases:
       # Vector database - to store and to search for embeddings,

@@ -29,8 +29,6 @@ logger = logging.getLogger(__name__)
 
 collection_prefix = "weaviate_vectorstore_"
 
-# Info The collection_suffix is the timestamp of creation of the collection: "YYYYMMDD-HHMMSS"
-
 # TODO: CONFIG CURRENTLY NOT USED - Vectorstore is hard-coded in factory.vectorstore_factory.py!!!
 @cache
 def get_vectorstore_NOT_USED() -> VectorStore:
@@ -51,13 +49,13 @@ def get_vectorstore_NOT_USED() -> VectorStore:
     # Action: Create instance
     return call_function_or_constructor(module_and_class, class_kwargs, context_str_for_logging)
 
-def get_vectorstore_stats(collection_suffix: str = "default_collection", log_all_entries: bool = False) -> str:
+def get_vectorstore_stats(log_all_entries: bool = False) -> str:
     weaviate_client = get_weaviate_client()
     global collection_prefix
 
     if weaviate_client:
         if weaviate_client.collections:
-            collection_name = f"{collection_prefix}{collection_suffix}"
+            collection_name = get_vectorstore_collection_name()
             # Check if the collection exists
             collection_exists = weaviate_client.collections.exists(collection_name)
             if not collection_exists:
@@ -77,8 +75,8 @@ def get_vectorstore_stats(collection_suffix: str = "default_collection", log_all
     else:
         return "No (Weaviate) client available."
 
-def print_vectorstore_stats(collection_suffix: str = "default_collection") -> None:
-    stats = get_vectorstore_stats(collection_suffix, True)
+def print_vectorstore_stats() -> None:
+    stats = get_vectorstore_stats(True)
     logger.info(stats)
 
 
@@ -144,8 +142,21 @@ def get_weaviate_client() -> WeaviateClient:
 # def createget_newest_collection_name() -> Optional[str]:
 #     # TODO XXXXXXXXXXXXXXXXXXXXXX: Transactionssicherheit beim collection-Wechsel!!!
 
+def get_vectorstore_collection_name() -> str:
+    # Build name
+    embedding_model_id = deep_get(settings, "config.common.embedding_model_id")
+    collection_suffix = embedding_model_id
+    collection_name = f"{collection_prefix}-model-{collection_suffix}"
+
+    # replace all non-alphanumeric characters with an underscore
+    collection_name = ''.join(c if c.isalnum() else '_' for c in collection_name)
+    # remove leading and trailing underscores
+    collection_name = collection_name.strip('_')
+
+    return collection_name
+
 @cache
-def get_vectorstore(collection_suffix: str = "default_collection") -> VectorStore:
+def get_vectorstore() -> VectorStore:
     # TODO: Remove hard-coded vectorstore
 
     #from langchain_chroma import Chroma
@@ -156,8 +167,7 @@ def get_vectorstore(collection_suffix: str = "default_collection") -> VectorStor
 
 
     # Create a VectorStore instance
-    collection_prefix = "weaviate_vectorstore_"
-    collection_name = f"{collection_prefix}{collection_suffix}"
+    collection_name = get_vectorstore_collection_name()
     vector_store = WeaviateVectorStore(
         client=get_weaviate_client(),
         index_name=collection_name,
@@ -184,19 +194,18 @@ def get_vectorstore(collection_suffix: str = "default_collection") -> VectorStor
     return vector_store
 
 
-def clean_vectorstore(index_build_id: str, collection_suffix: str = "default_collection") -> int:
+def clean_vectorstore(index_build_id: str) -> int:
     """
     Iterate through all entries in the vectorstore and delete entries
     that don't have the specified metadata key/value pair.
 
     Args:
         index_build_id (str): The index build ID to check against.
-        collection_suffix (str): The suffix of the collection to clean.
     Returns:
         int: The number of deleted objects.
     """
     weaviate_client = get_weaviate_client()
-    collection_name = f"{collection_prefix}{collection_suffix}"
+    collection_name = get_vectorstore_collection_name()
     metadata_key = "index_build_id"
     metadata_value_expected = index_build_id
 

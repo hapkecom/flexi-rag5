@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
+from langchain_ollama import ChatOllama
 #
 # Specific LLM instances and their setup
 #
@@ -79,6 +79,17 @@ def setup_llm_for_config(
     module_and_class = deep_get(llm_config, "class")
     class_kwargs = deep_get(llm_config, "args")
 
+    # add args to class_kwargs - TODO: make it more generic, currently is's only a hack for Ollama
+    auth = deep_get(class_kwargs, "kwargs_header_authorization", None)
+    if auth is not None:
+        class_kwargs["client_kwargs"] = {
+            "headers": {
+                "Authorization": auth
+            }
+        }
+        # remove the auth from class_kwargs
+        del class_kwargs["kwargs_header_authorization"]
+
     # Action: Create instance
     return call_function_or_constructor(module_and_class, class_kwargs, context_str_for_logging)
 
@@ -97,6 +108,17 @@ def get_default_embeddings() -> Embeddings:
     # Load config
     module_and_class = deep_get(config_embedding_llm, "class")
     class_kwargs = deep_get(config_embedding_llm, "args")
+
+    # add args to class_kwargs - TODO: make it more generic, currently is's only a hack for Ollama
+    auth = deep_get(class_kwargs, "kwargs_header_authorization", None)
+    if auth is not None:
+        class_kwargs["client_kwargs"] = {
+            "headers": {
+                "Authorization": auth
+            }
+        }
+        # remove the auth from class_kwargs
+        del class_kwargs["kwargs_header_authorization"]
 
     # Action: Create instance
     return call_function_or_constructor(module_and_class, class_kwargs, context_str_for_logging)

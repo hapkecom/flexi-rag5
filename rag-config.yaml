@@ -22,10 +22,22 @@ config:
           #api_key: "${env.OPENAI_API_KEY}"
           #base_url: "https://api.openai.com/v1"
           #base_url: "https://your.openai-compatible-api.example.com/v1"
+      Ollama_default_llm:
+        class: langchain_ollama.ChatOllama
+        args:
+          # you can overwrite, e.g. "model_name" with environment variable:
+          #   export RAG_CONFIG__COMMON__DEFAULT_LLM_WITH_STREAMING__ChatOpenAI__args__model_name="gpt-ais-invalid-model"
+          model: "qwen3:0.6b"
+          temperature: 0.2
+          streaming: False
+          base_url: "http://ollama.aisbreaker.org:21434"
+          # handling of 'kwargs_header_authorization' is a non-generic, dirty hack in llm_factory.py:
+          kwargs_header_authorization: "Bearer my-priv-toke-..."
 
 
     # Embeddings LLM used indexing and for the retrieval
-    embedding_llm:
+    embedding_llm_OPENAI:
+    #embedding_llm:
       # Instance of (subtype of) type langchain_core.embeddings.Embeddings
       #
       # class=<module>.<chat-class>
@@ -39,7 +51,23 @@ config:
         #api_key: "<YOUR_OPENAI_API_KEY>"
         #base_url: "https://api.openai.com/v1"
         #base_url: "https://your.openai-compatible-api.example.com/v1"
-    embedding_model_id: "openai/text-embedding-3-small-v101"
+    #embedding_model_id: "openai/text-embedding-3-small-v101"
+
+    embedding_llm:
+      # Instance of (subtype of) type langchain_core.embeddings.Embeddings
+      #
+      # class=<module>.<chat-class>
+
+      # Ollama Embeddings
+      class: langchain_ollama.OllamaEmbeddings
+      args:
+        # Important: If the embedding model changes, the index must be rebuilt!!!
+        model: "nomic-embed-text:v1.5"
+        base_url: "http://ollama.aisbreaker.org:21434"
+        # handling of 'kwargs_header_authorization' is a non-generic, dirty hack in llm_factory.py:
+        kwargs_header_authorization: "Bearer my-priv-toke-..."
+    embedding_model_id: "ollama/nomic-embed-text:v1.5"
+
 
     databases:
       vectorstore:
@@ -91,9 +119,14 @@ config:
 
   rag_response:
     # select the LLMs used for the response generation
-    default_chat_llm: ChatOpenAI_default_llm
-    default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming
-    document_grader_chat_llm: ChatOpenAI_strict_llm
-    rewrite_question_chat_llm: ChatOpenAI_strict_llm
+    #default_chat_llm: ChatOpenAI_default_llm
+    #default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming
+    #document_grader_chat_llm: ChatOpenAI_strict_llm
+    #rewrite_question_chat_llm: ChatOpenAI_strict_llm
+
+    default_chat_llm: Ollama_default_llm
+    default_chat_llm_with_streaming: Ollama_default_llm
+    document_grader_chat_llm: Ollama_default_llm
+    rewrite_question_chat_llm: Ollama_default_llm
 
 

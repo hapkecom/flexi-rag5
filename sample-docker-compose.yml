@@ -15,6 +15,22 @@ services:
     ports:
       - 8000:8000
 
+
+  #
+  # (optional) Proxy for Ollama
+  #
+
+  #ollama-client-proxy:
+  #  image: ollama-client-proxy:latest
+  #  build:
+  #    context: .
+  #    dockerfile: ollama-client-proxy-Dockerfile
+  #  environment:
+  #    AUTH_HEADER_VALUE: 'Bearer my-priv-toke-...'
+  #  ports:
+  #    - 11434:11434
+
+
   #
   # vector database
   #
@@ -58,7 +74,9 @@ services:
   # AI frontend
   #
   perplexica:
-    image: itzcrazykns1337/perplexica:main
+    #image: itzcrazykns1337/perplexica:main
+    #image: itzcrazykns1337/perplexica:feature-flexible-ollama
+    image: opendevopsrepo/grafana-with-plugins:perplexica-feature-flexible-ollama
     #build:
     #  context: .
     #  dockerfile: app.dockerfile
