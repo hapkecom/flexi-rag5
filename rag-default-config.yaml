@@ -25,7 +25,7 @@ config:
 
       # OpenAI Chat
       # For args/parameters see: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
-      ChatOpenAI_default_llm:
+      EXAMPLE_NOT_USER_ChatOpenAI_default_llm:
         class: langchain_openai.ChatOpenAI        
         args:
           # you can overwrite, e.g. "model_name" with environment variable:
@@ -38,14 +38,14 @@ config:
           #base_url: "https://api.openai.com/v1"
           #base_url: "https://your.openai-compatible-api.example.com/v1"
 
-      ChatOpenAI_default_llm_with_streaming:
+      EXAMPLE_NOT_USER_ChatOpenAI_default_llm_with_streaming:
         class: langchain_openai.ChatOpenAI
         args:
           model_name: "gpt-4o-mini"
           temperature: 0.2
           streaming: True
 
-      ChatOpenAI_strict_llm:
+      EXAMPLE_NOT_USER_ChatOpenAI_strict_llm:
         class: langchain_openai.ChatOpenAI
         args:
           model_name: "gpt-4o-mini"
@@ -54,7 +54,7 @@ config:
 
 
     # Embeddings LLM used indexing and for the retrieval
-    embedding_llm:
+    EXAMPLE_NOT_USER_embedding_llm:
       # Instance of (subtype of) type langchain_core.embeddings.Embeddings
       #
       # class=<module>.<chat-class>
@@ -68,7 +68,7 @@ config:
         #api_key: "<YOUR_OPENAI_API_KEY>"
         #base_url: "https://api.openai.com/v1"
         #base_url: "https://your.openai-compatible-api.example.com/v1"
-    embedding_model_id: "openai/text-embedding-3-small-v101"
+    EXAMPLE_NOT_USER_embedding_model_id: "openai/text-embedding-3-small-v101"
 
     # Example with Ollama:
     #
@@ -107,8 +107,7 @@ config:
 
         # Weaviate - requires package: weaviate-client
         class: langchain_community.vectorstores.Weaviate
-
-        weaviate_host: "127.0.0.1"
+        weaviate_host: "weaviate"
         weaviate_port: 8080
         weaviate_grpc_port: 50051
 
@@ -243,10 +242,21 @@ config:
 
   rag_response:
     # select the LLMs used for the response generation
-    default_chat_llm: ChatOpenAI_default_llm
-    default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming
-    document_grader_chat_llm: ChatOpenAI_strict_llm
-    rewrite_question_chat_llm: ChatOpenAI_strict_llm
+    default_chat_llm: Chat_default_llm
+    default_chat_llm_with_streaming: Chat_default_llm
+    document_grader_chat_llm: Chat_default_llm
+    rewrite_question_chat_llm: Chat_default_llm
+
+    #default_chat_llm: ChatOpenAI_default_llm
+    #default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming
+    #document_grader_chat_llm: ChatOpenAI_strict_llm
+    #rewrite_question_chat_llm: ChatOpenAI_strict_llm
+
+    #default_chat_llm: ChatOllama_default_llm
+    #default_chat_llm_with_streaming: ChatOllama_default_llm
+    #document_grader_chat_llm: ChatOllama_default_llm
+    #rewrite_question_chat_llm: ChatOllama_default_llm
+
 
     # Only the first user message of a chat is handled as a question and enriched with retrieved documents (DEFAULT):
     #   enrich_all_user_messages_with_retrieved_documents: false

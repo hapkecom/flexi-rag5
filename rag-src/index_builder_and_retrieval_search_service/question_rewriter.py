@@ -40,3 +40,34 @@ async def rewrite_question_for_vectorsearch_retrieval(question: str) -> str:
     # Result
     logger.info(f"Updated question: '{question}' -> '{updated_question}'")
     return updated_question
+
+
+@alru_cache(maxsize=config.maxCachedQuestions)
+async def rewrite_question_for_keywordsearch_retrieval(question: str) -> str:
+    """
+    Rewrite a question for keywordsearch retrieval.
+    """
+
+    # LLM
+    llm = get_rewrite_question_chat_llm()
+
+    # Prompt
+    system = """You a question analyze that identifies the most relevant single keyword for optimal search. \n 
+         Look at the input and try to reason about the underlying semantic intent / meaning."""
+    re_write_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            (
+                "human",
+                "Here is the initial question: \n\n {question} \n Identifies the most relevant single keyword.",
+            ),
+        ]
+    )
+
+    # Action
+    question_rewriter = re_write_prompt | llm | StrOutputParser()
+    updated_question = question_rewriter.invoke({"question": question})
+
+    # Result
+    logger.info(f"Updated question: '{question}' -> '{updated_question}'")
+    return updated_question

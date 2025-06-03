@@ -18,11 +18,18 @@ API_KEY = ""
 API_KEY = ""
 API_URL = ""
 MODEL_NAME = ""
+#API_URL = "https://api.openai.com/v1"
+#API_KEY = "sk-..."
+#MODEL_NAME = "gpt-4o"
 
 [MODELS.OLLAMA]
-API_URL = "" # Ollama API URL - http://host.docker.internal:11434
+API_URL = "" # Ollama API URL - "http://my.ollama.hostname:11434"
 API_KEY = ""
 MODEL_NAME = ""
+#API_URL = "http://ollama-client-proxy:11434/" # Ollama API URL - "http://my.ollama.hostname:11434"
+#API_URL = "http://ollama.aisbreaker.org:21434/" # Ollama API URL - "http://my.ollama.hostname:11434"
+#API_KEY = "my-priv-toke-..."
+#MODEL_NAME = "qwen3:0.6b"
 
 [MODELS.DEEPSEEK]
 API_KEY = ""
@@ -31,4 +38,4 @@ API_KEY = ""
 API_URL = "" # LM Studio API URL - http://host.docker.internal:1234
 
 [API_ENDPOINTS]
-SEARXNG = "" # SearxNG API URL - http://localhost:32768
+SEARXNG = "http://rag-app:8000" # SearxNG API URL - http://localhost:32768

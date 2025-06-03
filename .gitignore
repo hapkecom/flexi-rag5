@@ -1,7 +1,7 @@
 # personal cofigutation files - derived from samples
-perplexica-config.toml
 docker-compose.yml
-rag-config.yaml
+perplexica-config.toml*
+rag-config.yaml*
 
 
 # Byte-compiled / optimized / DLL files

@@ -35,7 +35,8 @@ class SearxNGResponse(BaseModel):
 @router.get("/search", response_model=SearxNGResponse)
 async def search_endpoint(
     q: str = Query(..., description="Search query"),
-    max_results: int = Query(10, description="Maximum number of results to return")
+    max_results: int = Query(10, description="Maximum number of results to return"),
+    engines: Optional[str] = Query(None, description="Search engines to use")
 ) -> SearxNGResponse:
     """
     Search endpoint implementing the SearxNG API protocol.
@@ -43,26 +44,34 @@ async def search_endpoint(
 
     logger.info(f"API Received query: {q}")
 
-    # Perform the search using the imported search function
-    content_docs: List[Document] = await search(q)
-
-    # Check if response is None
-    if content_docs:
-        #logger.info(f"Response - contents (documents) found: {json.dumps(content_docs)}")
-        logger.info(f"Response - {len(content_docs)} contents (documents) found: {content_docs}")
-    else:
-        logger.info(f"Response: no contents (documents) found for query '{q}'")
-
-    # Format results
     search_results = []
-    for content_doc in content_docs:
-        # convert to SearchResult
-        searchResult = SearchResult(
-            title=content_doc.metadata.get("title", None),
-            content=content_doc.page_content,
-            url=content_doc.metadata.get("source", None),
-        )
-        search_results.append(searchResult)
+
+    # Skip searches for images or videos
+    if engines:
+        e = engines.lower()
+        if "image" in e or "video" in e:
+            logger.info(f"Search query contains 'image' or 'video', skipping search. Engines: {engines}")
+
+    else:
+        # Perform the search using the imported search function
+        content_docs: List[Document] = await search(q)
+
+        # Check if response is None
+        if content_docs:
+            #logger.info(f"Response - contents (documents) found: {json.dumps(content_docs)}")
+            logger.info(f"Response - {len(content_docs)} contents (documents) found: {content_docs}")
+        else:
+            logger.info(f"Response: no contents (documents) found for query '{q}'")
+
+        # Format results
+        for content_doc in content_docs:
+            # convert to SearchResult
+            searchResult = SearchResult(
+                title=content_doc.metadata.get("title", None),
+                content=content_doc.page_content,
+                url=content_doc.metadata.get("source", None),
+            )
+            search_results.append(searchResult)
 
     # Create SearxNGResponse object
     searxng_response = SearxNGResponse(
@@ -79,8 +88,9 @@ async def search_endpoint(
             "network": 0.0
         }
     )
-    print("-------------------")
-    print(f"SearxNG Response: {searxng_response}")
-    print("-------------------")
+
+    logger.info("-------------------")
+    logger.info(f"SearxNG Response - {len(search_results)} results: {searxng_response}")
+    logger.info("-------------------")
 
     return searxng_response

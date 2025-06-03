@@ -1,20 +1,26 @@
 ---
+version: '3'    # the version attribute is deprecated but required by older docker-compose versions
 services:
   rag-app:
-    image: rag-app:latest
-    build:
-      context: .
-      dockerfile: rag.Dockerfile
+    image: aisbreaker/rag-app:latest
+    container_name: rag-app
+    #build:
+    #  context: .
+    #  dockerfile: rag.Dockerfile
     environment:
-      - OPENAI_API_KEY=sk-...
-      # overwrite (default-)config.yaml
-      #- RAG_common_config_vectorstore_weaviate_host=127.0.0.1
-      - RAG_config__common__databases__vectorstore__weaviate_host=weaviate
-      - RAG_config__common__databases__vectorstore__weaviate_port=8080
-      - RAG_config__common__databases__vectorstore__weaviate_grpc_port=50051
+      #- OPENAI_API_KEY=sk-...   # setting key in rag-config.yaml is preferred
+      # overwrite rag-(default-)config.yaml
+      #- RAG_config__common__databases__vectorstore__weaviate_host=weaviate
+      #- RAG_config__common__databases__vectorstore__weaviate_port=8080
+      #- RAG_config__common__databases__vectorstore__weaviate_grpc_port=50051
+      - FOO=bar
     ports:
       - 8000:8000
-
+    #networks:
+    #  - rag-network
+    volumes:
+      - rag_data:/app/data/rag-sql-database
+      - ./rag-config.yaml:/app/rag-config.yaml:ro
 
   #
   # (optional) Proxy for Ollama
@@ -22,11 +28,12 @@ services:
 
   #ollama-client-proxy:
   #  image: ollama-client-proxy:latest
+  #  container_name: ollama-client-proxy
   #  build:
   #    context: .
   #    dockerfile: ollama-client-proxy-Dockerfile
   #  environment:
-  #    AUTH_HEADER_VALUE: 'Bearer my-priv-toke-...'
+  #    AUTH_HEADER_VALUE: 'Bearer my-priv-toke-...'    # setting key in rag-config.yaml is preferred
   #  ports:
   #    - 11434:11434
 
@@ -43,6 +50,7 @@ services:
       - --scheme
       - http
     image: cr.weaviate.io/semitechnologies/weaviate:1.29.2
+    container_name: weaviate
     ports:
       - 8080:8080
       - 50051:50051
@@ -77,6 +85,7 @@ services:
     #image: itzcrazykns1337/perplexica:main
     #image: itzcrazykns1337/perplexica:feature-flexible-ollama
     image: opendevopsrepo/grafana-with-plugins:perplexica-feature-flexible-ollama
+    container_name: perplexica
     #build:
     #  context: .
     #  dockerfile: app.dockerfile
@@ -105,30 +114,31 @@ services:
 
 
 volumes:
+  rag_data:
+    driver: local
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/rag-data
+
   weaviate_data:
     driver: local
-    driver_opts:
-      o: bind
-      type: none
-      #device: ${PWD}/weaviate-data
-      #device: ${PWD}/data/rag-vectorstore-weaviate-data
-      device: ../flexi-rag2-storage/rag-vectorstore-weaviate-data
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/rag-vectorstore-weaviate-data
  
   perplexica_data:  #perplexica-backend-dbstore:
     driver: local
-    driver_opts:
-      o: bind
-      type: none
-      #device: ${PWD}/perplexica-data
-      #device: ${PWD}/data/perplexica-data
-      device: ../flexi-rag2-storage/perplexica-data
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/perplexica-data
 
   perplexica_uploads:
     driver: local
-    driver_opts:
-      o: bind
-      type: none
-      #device: ${PWD}/perplexica-uploads
-      #device: ${PWD}/data/perplexica-uploads
-      device: ../flexi-rag2-storage/perplexica-uploads
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/perplexica-uploads
 

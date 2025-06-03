@@ -22,7 +22,7 @@ import threading
 import time
 from langchain_core.vectorstores import VectorStore
 from common.service.configloader import deep_get, settings
-from factory.llm_factory import get_default_embeddings
+from factory.llm_factory import test_all_llm_and_embedding_llm_connections
 from langchain_core.documents import Document
 import logging
 
@@ -79,7 +79,11 @@ def indexing_endless_loop_worker():
         starttime = time.time()
 
         # action
-        indexing_single_run()
+        if test_all_llm_and_embedding_llm_connections():
+            logger.info("===== All LLM and embedding connections are working. Starting indexing run ...")
+            indexing_single_run()
+        else:
+            logger.error("===== One or more LLM or embedding connections are not working. Skipping indexing run ...")
 
         # finish this round
         now = time.time()
@@ -101,7 +105,7 @@ def indexing_single_run():
     now = datetime.now(timezone.utc).isoformat()
     index_build_id = f"build_index_run_{now}"
 
-    logger.info(f"===== indexing_single_run() START (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== START (#{indexing_single_run_counter}, '{index_build_id}') =====")
 
     """
     Here we decouple the crawling/loading and the processing/saving of the downloaded documents
@@ -117,22 +121,22 @@ def indexing_single_run():
 
     # wait until all documents are completely processed - needed before we can clean the vectorStore
     downloadedPlogsToProcessQueue.join()
-    logger.info(f"===== indexing_single_run() ALL DOCUMENTS PROCESSED (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== ALL DOCUMENTS PROCESSED (#{indexing_single_run_counter}, '{index_build_id}') =====")
 
     # cleanup of vectorStore
-    logger.info(f"===== indexing_single_run() RESULTS BEFORE CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== RESULTS BEFORE CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
     print_vectorstore_stats()
     clean_vectorstore(index_build_id)
-    logger.info(f"===== indexing_single_run() RESULTS AFTER CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== RESULTS AFTER CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
     print_vectorstore_stats()
 
     # single run done
-    logger.info(f"===== indexing_single_run() RESULTS (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== RESULTS (#{indexing_single_run_counter}, '{index_build_id}') =====")
     print_all_from_sqldb()
     print_vectorstore_stats()
     #vectorStore = get_vectorstore()
     #logger.info(f"vectorStore = {vectorStore}")
-    logger.info(f"===== indexing_single_run() END (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== END (#{indexing_single_run_counter}, '{index_build_id}') =====")
     indexing_single_run_counter += 1
 
 

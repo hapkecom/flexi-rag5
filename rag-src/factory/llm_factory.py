@@ -7,6 +7,7 @@ from langchain_core.embeddings import Embeddings
 from factory.factory_util import call_function_or_constructor
 from common.service.configloader import deep_get, settings
 import logging
+from common.utils.string_util import str_limit
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +131,75 @@ def get_default_embeddingsOLD() -> Embeddings:
     return OpenAIEmbeddings()
 
 
+#
+# Helper function to text LLM connection
+#
+def test_llm_connection(llm: BaseChatModel, info: str) -> bool:
+    """
+    Test the connection to the LLM by sending a simple prompt.
+    
+    Args:
+        llm (BaseChatModel): The LLM instance to test.
+        info (str): Additional information for logging.
+        
+    Returns:
+        bool: True if the connection is successful, False otherwise.
+    """
+    try:
+        logger.debug(          f"LLM connection test of '{info}' starts...")
+        response = llm.invoke("Hello, how are you?")
+        logger.debug(str_limit(f"LLM connection test of '{info}' successful: {response}", 300))
+        return True
+    except Exception as e:
+        logger.error(f"LLM connection test of '{info}' failed: {e}")
+        return False
+
+def test_embeddings_connection(embeddings: Embeddings, info: str) -> bool:
+    """
+    Test the connection to the embeddings model by generating embeddings for a simple text.
+    
+    Args:
+        embeddings (Embeddings): The embeddings instance to test.
+        info (str): Additional information for logging.
+
+    Returns:
+        bool: True if the connection is successful, False otherwise.
+    """
+    try:
+        logger.debug(          f"Embeddings connection test of '{info}' starts...")
+        response = embeddings.embed_query("Hello, how are you?")
+        logger.debug(str_limit(f"Embeddings connection test of '{info}' successful: {response}", 300))
+        return True
+    except Exception as e:
+        logger.error(f"Embeddings connection test of '{info}' failed: {e}")
+        return False
+
+def test_all_llm_and_embedding_llm_connections() -> bool:
+    """
+    Test all LLM connections defined in the configuration.
+    
+    Returns:
+        bool: True if all connections are successful, False otherwise.
+    """
+    all_successful = True
+
+    # Test each LLM connection
+    all_chat_llms = [
+        # ignored here because not very relevant: (get_default_chat_llm_with_streaming(), "default_chat_llm_with_streaming"),
+        # ignored here because not very relevant: (get_default_chat_llm_without_streaming(), "default_chat_llm_without_streaming"),
+        (get_document_grader_chat_llm(), "document_grader_chat_llm"),
+        (get_rewrite_question_chat_llm(), "rewrite_question_chat_llm"),
+    ]
+    for llm, info in all_chat_llms:
+        if not test_llm_connection(llm, info):
+            all_successful = False
+
+    # Test each embedding LLM connection
+    all_embeddings = [
+        (get_default_embeddings(), "default_embeddings")
+    ]
+    for embeddings, info in all_embeddings:
+        if not test_embeddings_connection(embeddings, info):
+            all_successful = False
+
+    return all_successful

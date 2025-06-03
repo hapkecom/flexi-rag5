@@ -29,7 +29,7 @@ COPY rag-src/requirements.txt rag-src/
 RUN pip install --no-cache-dir -r rag-src/requirements.txt
 
 # Copy configuration
-COPY rag-default-config.yaml rag-config.yaml ./
+COPY rag-default-config.yaml ./
 
 # Copy the application source code
 COPY rag-src/ ./rag-src

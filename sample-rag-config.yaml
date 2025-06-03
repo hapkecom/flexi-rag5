@@ -8,9 +8,28 @@ config:
       #
       # class=<module>.<chat-class>
 
-      # OpenAI Chat
+      # default LLM
+      Chat_default_llm:
+        class: langchain_openai.ChatOpenAI        
+        args:
+          base_url: "https://api.openai.com/v1"
+          api_key: "sk-..."
+          model_name: "gpt-4o-mini"
+          temperature: 0.2
+          streaming: False
+      #Chat_default_llm:
+      #  class: langchain_ollama.ChatOllama
+      #  args:
+      #    base_url: "http://ollama.aisbreaker.org:21434"
+      #    kwargs_header_authorization: "Bearer my-priv-toke-..."
+      #    model: "qwen3:0.6b"
+      #    temperature: 0.2
+      #    streaming: False
+
+
+      # OpenAI Chat - NOT USED BY DEFAULT!
       # For args/parameters see: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
-      ChatOpenAI_default_llm:
+      NOT_USED_ChatOpenAI_default_llm:
         class: langchain_openai.ChatOpenAI        
         args:
           # you can overwrite, e.g. "model_name" with environment variable:
@@ -20,9 +39,12 @@ config:
           streaming: False
           #api_key: "<YOUR_OPENAI_API_KEY>"
           #api_key: "${env.OPENAI_API_KEY}"
-          #base_url: "https://api.openai.com/v1"
+          api_key: "sk-..."
+          base_url: "https://api.openai.com/v1"
           #base_url: "https://your.openai-compatible-api.example.com/v1"
-      Ollama_default_llm:
+
+      # Ollama Chat - NOT USED BY DEFAULT!
+      NOT_USED_ChatOllama_default_llm:
         class: langchain_ollama.ChatOllama
         args:
           # you can overwrite, e.g. "model_name" with environment variable:
@@ -36,8 +58,25 @@ config:
 
 
     # Embeddings LLM used indexing and for the retrieval
-    embedding_llm_OPENAI:
+    
+    # default embedding LLM
+    embedding_llm:
+      class: langchain_openai.embeddings.OpenAIEmbeddings
+      args:
+        base_url: "https://api.openai.com/v1"
+        api_key: "sk-..."
+        model: "text-embedding-3-small"
+    embedding_model_id: "openai/text-embedding-3-small-v101"
     #embedding_llm:
+    #  class: langchain_ollama.OllamaEmbeddings
+    #  args:
+    #    base_url: "http://ollama.aisbreaker.org:21434"
+    #    kwargs_header_authorization: "Bearer my-priv-toke-..."
+    #    model: "jina/jina-embeddings-v2-base-de:latest"
+    #embedding_model_id: "ollama/jina/jina-embeddings-v2-base-de"
+
+
+    NOT_USED_embedding_llm_OPENAI:    # NOT USED BY DEFAULT!
       # Instance of (subtype of) type langchain_core.embeddings.Embeddings
       #
       # class=<module>.<chat-class>
@@ -49,11 +88,13 @@ config:
         # Important: If the embedding model changes, the index must be rebuilt!!!
         model: "text-embedding-3-small"
         #api_key: "<YOUR_OPENAI_API_KEY>"
+        api_key: "sk-..."
+        base_url: "https://api.openai.com/v1"
         #base_url: "https://api.openai.com/v1"
         #base_url: "https://your.openai-compatible-api.example.com/v1"
-    #embedding_model_id: "openai/text-embedding-3-small-v101"
+    NOT_USED_embedding_model_id_OPENAI: "openai/text-embedding-3-small-v101"
 
-    embedding_llm:
+    NOT_USED_embedding_llm_OLLAMA:    # NOT USED BY DEFAULT!
       # Instance of (subtype of) type langchain_core.embeddings.Embeddings
       #
       # class=<module>.<chat-class>
@@ -62,20 +103,20 @@ config:
       class: langchain_ollama.OllamaEmbeddings
       args:
         # Important: If the embedding model changes, the index must be rebuilt!!!
-        model: "nomic-embed-text:v1.5"
+        model: "jina/jina-embeddings-v2-base-de:latest"
         base_url: "http://ollama.aisbreaker.org:21434"
         # handling of 'kwargs_header_authorization' is a non-generic, dirty hack in llm_factory.py:
         kwargs_header_authorization: "Bearer my-priv-toke-..."
-    embedding_model_id: "ollama/nomic-embed-text:v1.5"
+    NOT_USED_embedding_model_id_OLLAMA: "ollama/jina/jina-embeddings-v2-base-de"
 
 
-    databases:
-      vectorstore:
-        # Weaviate - requires package: weaviate-client
-        class: langchain_community.vectorstores.Weaviate
-        weaviate_host: "127.0.0.1"
-        weaviate_port: 8080
-        weaviate_grpc_port: 50051
+    #databases:
+    #  vectorstore:
+    #    # Weaviate - requires package: weaviate-client
+    #    class: langchain_community.vectorstores.Weaviate
+    #    weaviate_host: "weaviate"
+    #    weaviate_port: 8080
+    #    weaviate_grpc_port: 50051
 
   rag_loading:
     # minimim time between loading/indexing runs, in seconds
@@ -117,16 +158,16 @@ config:
           # In this command line, you can reference the other args as variables "${arg.<ARG-NAME>}".
           #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
 
-  rag_response:
+
+
+
+  # rag_response:
+    #
     # select the LLMs used for the response generation
-    #default_chat_llm: ChatOpenAI_default_llm
-    #default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming
-    #document_grader_chat_llm: ChatOpenAI_strict_llm
-    #rewrite_question_chat_llm: ChatOpenAI_strict_llm
+    #
 
-    default_chat_llm: Ollama_default_llm
-    default_chat_llm_with_streaming: Ollama_default_llm
-    document_grader_chat_llm: Ollama_default_llm
-    rewrite_question_chat_llm: Ollama_default_llm
-
+    #default_chat_llm: Chat_default_llm
+    #default_chat_llm_with_streaming: Chat_default_llm
+    #document_grader_chat_llm: Chat_default_llm
+    #rewrite_question_chat_llm: Chat_default_llm
 
