@@ -3,6 +3,8 @@ from functools import cache
 from typing import Dict, Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.embeddings import Embeddings
+from langchain_openai.embeddings import OpenAIEmbeddings
+import os
 
 from factory.factory_util import call_function_or_constructor
 from common.service.configloader import deep_get, settings
@@ -12,6 +14,7 @@ from common.utils.string_util import str_limit
 logger = logging.getLogger(__name__)
 
 from langchain_ollama import ChatOllama
+
 #
 # Specific LLM instances and their setup
 #
@@ -151,27 +154,27 @@ def test_llm_connection(llm: BaseChatModel, info: str) -> bool:
         logger.debug(str_limit(f"LLM connection test of '{info}' successful: {response}", 300))
         return True
     except Exception as e:
-        logger.error(f"LLM connection test of '{info}' failed: {e}")
+        logger.error(f"LLM connection test of '{info}' failed: {e}", exc_info=True)
         return False
 
 def test_embeddings_connection(embeddings: Embeddings, info: str) -> bool:
     """
-    Test the connection to the embeddings model by generating embeddings for a simple text.
-    
-    Args:
-        embeddings (Embeddings): The embeddings instance to test.
-        info (str): Additional information for logging.
+        Test the connection to the embeddings model by generating embeddings for a simple text.
+        
+        Args:
+            embeddings (Embeddings): The embeddings instance to test.
+            info (str): Additional information for logging.
 
-    Returns:
-        bool: True if the connection is successful, False otherwise.
+        Returns:
+            bool: True if the connection is successful, False otherwise.
     """
     try:
-        logger.debug(          f"Embeddings connection test of '{info}' starts...")
+        logger.debug(f"Embeddings connection test of '{info}' starts...")
         response = embeddings.embed_query("Hello, how are you?")
         logger.debug(str_limit(f"Embeddings connection test of '{info}' successful: {response}", 300))
         return True
     except Exception as e:
-        logger.error(f"Embeddings connection test of '{info}' failed: {e}")
+        logger.error(f"Embeddings connection test of '{info}' failed: {e}", exc_info=True)
         return False
 
 def test_all_llm_and_embedding_llm_connections() -> bool:
@@ -182,6 +185,10 @@ def test_all_llm_and_embedding_llm_connections() -> bool:
         bool: True if all connections are successful, False otherwise.
     """
     all_successful = True
+
+    # Preparation
+    if not init_tiktiken_cache():
+        all_successful = False
 
     # Test each LLM connection
     all_chat_llms = [
@@ -203,3 +210,37 @@ def test_all_llm_and_embedding_llm_connections() -> bool:
             all_successful = False
 
     return all_successful
+
+
+#
+#
+#
+
+@cache
+def init_tiktiken_cache() -> bool:
+    """
+    Initialize the tiktoken cache
+    to avoid downloads from https://openaipublic.blob.core.windows.net.
+
+    Background: see
+    - /tiktoken-cache-dir/fill-tiktoken-cache.sh
+    - https://stackoverflow.com/questions/76106366/how-to-use-tiktoken-in-offline-mode-computer
+
+    
+    Returns:
+        bool: True if the cache is initialized successfully, False otherwise.
+    """
+    try:
+        # set tokenizer cache temporarily
+        if "TIKTOKEN_CACHE_DIR" not in os.environ:
+            should_revert = True
+            os.environ["TIKTOKEN_CACHE_DIR"] = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "tiktoken-cache-dir",
+            )
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to initialize tiktoken cache: {e}")
+        return False
+ 

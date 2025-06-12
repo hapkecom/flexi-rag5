@@ -13,9 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 class WgetBlobLoader(BlobLoader):
-    def __init__(self, url: str, **kwargs):
+    def __init__(self,
+                 url: Optional[str] = None,
+                 command: Optional[str] = None,
+                 **kwargs: Dict[str, Any]) -> None:
+        """Initialize the WgetBlobLoader with a URL or a command."""
 
         self.url = url
+        self.command = command
+
+        if not self.url and not self.command:
+            raise ValueError("Either 'url' or 'command' must be provided to WgetBlobLoader.")
 
     def yield_blobs(
         self,
@@ -23,26 +31,48 @@ class WgetBlobLoader(BlobLoader):
         """Yield blobs that match the requested pattern."""
         
         # crawl with wget and iterate over the blobs (downloaded files)
-        logger.info(f"Downloading files from url: {self.url}")
-        for blob in self.crawl_single_url_with_wget(self.url):
+        logger.info(f"Downloading files from url/with command: {self.url} / {self.command}")
+        blobs: Iterator[Blob] = []
+        if self.command is None and self.url is None:
+            raise ValueError("Either 'url' or 'command' must be provided to WgetBlobLoader.")
+        if self.command is None:
+            # use the url to crawl with wget
+            logger.info(f"Using URL '{self.url}' for crawling with wget")
+            blobs = WgetBlobLoader.crawl_single_url_with_wget(self.url)
+        else:
+            # use the command to crawl with wget
+            logger.info(f"Using command for crawling with wget")
+            directory_prefix = "/tmp/wget"
+            blobs = WgetBlobLoader.crawl_with_single_command(self.command, directory_prefix)
+
+        for blob in blobs:
             # extract text from downloaded blob
             logger.info(f"Downloaded file: {blob}")
             yield blob
 
+
     def __str__(self) -> str:
         return f"WgetBlobLoader(url: {self.url})"
 
+
     @staticmethod
     def crawl_single_url_with_wget(url) -> Iterator[Blob]:
-        # crawl with wget with popen
+        directory_prefix = "/tmp/wget"
+        command = f"wget --directory-prefix {directory_prefix} --recursive -l1 --no-parent -A.html,.txt,.mp4,.pdf --limit-rate=1024k --wait=10 {url}"
+        return WgetBlobLoader.crawl_with_single_command(command, directory_prefix)
+
+    @staticmethod
+    def crawl_with_single_command(command, directory_prefix) -> Iterator[Blob]:
+        # crawl with command(wget) with popen
         # and read name of downloaded files from stdin/stdout (with popen)
         import subprocess
         import os
         import io
 
-        directory_prefix = "/tmp/wget"
+        logger.info(f"Crawl now with (wget compatible) command:    {command}")
+
         proc = subprocess.Popen(
-            f"wget --directory-prefix {directory_prefix} --recursive -l1 --no-parent -A.html,.txt,.mp4,.pdf --limit-rate=1024k --wait=10 {url}",
+            command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=False,
@@ -51,7 +81,7 @@ class WgetBlobLoader(BlobLoader):
         for line in io.TextIOWrapper(proc.stderr, encoding="utf-8"):  # or another encoding
             # do something with line
             # trim the line
-            logger.info("    WGET: " + line.strip())
+            logger.info("    COMMAND(WGET?): " + line.strip())
             # extract <file_path> from line with "‘<file_path>’ saved"
             if "‘" in line and "’ saved" in line:
                 # extract file_path from line

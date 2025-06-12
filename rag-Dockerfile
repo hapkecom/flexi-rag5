@@ -12,6 +12,9 @@ FROM ${BASE_IMAGE}
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y \
     apt-utils \
     bash \
+    curl \
+    less \
+    net-tools \
     wget \
     && rm -rf /var/lib/apt/lists/*
 

@@ -1,0 +1,23 @@
+#
+# Dockerfile for oci image of a HTTP Client Proxy
+#
+
+# Define a build argument for the base image, defaulting to an nginx image
+ARG BASE_IMAGE=nginx:alpine
+
+# Use the base image
+FROM ${BASE_IMAGE}
+
+# Install basic tools
+RUN apk add --no-cache \
+  bash \
+  curl \
+  envsubst \
+  nginx \
+  less
+
+COPY http-client-proxy-nginx.conf.template /etc/nginx/nginx.conf.template
+
+CMD envsubst '${HTTP_FORWARD_URL},${HTTP_HEADER_NAME},${HTTP_HEADER_VALUE}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+#CMD nginx -g 'daemon off;'
+
