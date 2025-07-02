@@ -37,8 +37,14 @@ def split_single_document_into_parts_if_needed(doc: Document) -> List[Document]:
     token_count = len(encoding.encode(text))
 
     if token_count > chunk_size:
+        # Split
         return split_single_document_into_parts(doc)
     else:
+        # No need to split, but also add metadata
+        doc_split = doc #.pydantic_deep_copy()
+        doc_split.metadata["part_index"] = 0
+        doc_split.metadata["part_sha256"] = sha256sum_str(doc_split.page_content)
+        doc_split.metadata["part_size"] = len(doc_split.page_content)
         return [doc]
 
 

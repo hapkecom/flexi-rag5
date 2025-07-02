@@ -9,6 +9,7 @@ from langchain_core.document_loaders import BaseLoader
 from index_builder_and_retrieval_search_service.loader_and_parser.blob_parser_document_loader import BlobParserDocumentLoader
 from index_builder_and_retrieval_search_service.loader_and_parser.default_blob_parsers import DefaultBlob2DocumentsParser
 from document_loader_service.tools.wget_blob_loader import WgetBlobLoader
+from common.utils.string_util import str_limit
 
 import logging
 
@@ -35,7 +36,7 @@ def get_document_loaders() -> List[BaseLoader]:
     skipped_keys = []
     for key in config_loaders:
         config_loader: Dict = deep_get(config_loaders, key)
-        loader = get_loader_for_config(config_loader)
+        loader = get_configured_loader(config_loader)
         if loader is not None:
             loaders.append(loader)
             loaded_keys.append(key)
@@ -46,9 +47,9 @@ def get_document_loaders() -> List[BaseLoader]:
     return loaders
 
 
-def get_loader_for_config(config_loader: Dict) -> Optional[BaseLoader]:
+def get_configured_loader(config_loader: Dict) -> Optional[BaseLoader]:
     # Start
-    context_str_for_logging = f"Setup loader: {config_loader}"
+    context_str_for_logging = str_limit(f"Setup loader: {config_loader}", 400)
     logger.info(context_str_for_logging)
 
     # Load config
@@ -65,6 +66,8 @@ def get_loader_for_config(config_loader: Dict) -> Optional[BaseLoader]:
     # Action: Create instance (depending on type)
     if typename == "PlobLoader":
         plob_loader = call_function_or_constructor(module_and_class, class_kwargs, context_str_for_logging)
+        # throw an exception
+        raise NotImplementedError("PlobLoader is not implemented yet. Use BlobParserDocumentLoader with BlobLoader instead.")
         document_loader = BlobParserDocumentLoader(blob_loader, DefaultBlob2DocumentsParser()) 
         return document_loader
     if typename == "BlobLoader":

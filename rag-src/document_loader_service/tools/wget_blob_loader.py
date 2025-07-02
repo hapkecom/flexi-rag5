@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, Iterator, Optional
 #from langchain_community.document_loaders.[blob_loaders.schema] import BlobLoader
 from langchain_community.document_loaders import BlobLoader
 from langchain_core.documents.base import Blob as Blob
+from common.utils.string_util import str_limit
 
 import logging
 
@@ -31,24 +32,28 @@ class WgetBlobLoader(BlobLoader):
         """Yield blobs that match the requested pattern."""
         
         # crawl with wget and iterate over the blobs (downloaded files)
-        logger.info(f"Downloading files from url/with command: {self.url} / {self.command}")
+        logger.info(f"Downloading files from url='{self.url}', command='{str_limit(self.command, 80)}")
         blobs: Iterator[Blob] = []
         if self.command is None and self.url is None:
             raise ValueError("Either 'url' or 'command' must be provided to WgetBlobLoader.")
         if self.command is None:
             # use the url to crawl with wget
-            logger.info(f"Using URL '{self.url}' for crawling with wget")
+            logger.debug(f"Using URL '{self.url}' for crawling with wget")
             blobs = WgetBlobLoader.crawl_single_url_with_wget(self.url)
         else:
             # use the command to crawl with wget
-            logger.info(f"Using command for crawling with wget")
+            logger.debug(f"Using command for crawling with wget")
             directory_prefix = "/tmp/wget"
             blobs = WgetBlobLoader.crawl_with_single_command(self.command, directory_prefix)
 
+        count = 0
         for blob in blobs:
             # extract text from downloaded blob
-            logger.info(f"Downloaded file: {blob}")
+            logger.debug(f"Downloaded file: {blob}")
+            count += 1
             yield blob
+
+        logger.info(f"Finished downloading {count} blobs from url='{self.url}', command='{str_limit(self.command, 80)}'")
 
 
     def __str__(self) -> str:
@@ -69,46 +74,71 @@ class WgetBlobLoader(BlobLoader):
         import os
         import io
 
-        logger.info(f"Crawl now with (wget compatible) command:    {command}")
+        logger.debug(f"Crawl now with (wget compatible) command:    {command}")
+        commandStr = "WGET"
 
-        proc = subprocess.Popen(
+        # Collect outpout fromt stdout in array
+        output_lines = []
+        downloaded = False
+
+        # Run the command
+        with subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=False,
             shell=True
-        )
-        for line in io.TextIOWrapper(proc.stderr, encoding="utf-8"):  # or another encoding
-            # do something with line
-            # trim the line
-            logger.info("    COMMAND(WGET?): " + line.strip())
-            # extract <file_path> from line with "‘<file_path>’ saved"
-            if "‘" in line and "’ saved" in line:
-                # extract file_path from line
-                file_path = line.split("‘")[1].split("’ saved")[0]
-                # derive url from file_path
-                if file_path.startswith(directory_prefix):
-                    dir_prefix2 = directory_prefix
-                    if not file_path.endswith("/"):
-                        dir_prefix2 = directory_prefix + "/"
-                    file_path_without_prefix = file_path[len(dir_prefix2):]
-                    url = "https://" + file_path_without_prefix
-                else:
-                    url = "file://" + file_path
-                
-                #content_type = "text/html" # TODO: extract form wget output "Length: 2588 (2,5K) [text/html]"
-                content_type = None
-                file_size = os.path.getsize(file_path) # OR: # TODO: extract form wget output "Length: 2588 (2,5K) [text/html]"
-                logger.info(f"WGET downloaded url: {url} -> file_path: {file_path} (content_type: {content_type}, file_length: {file_size})")
-                
-                # Construct result Blob
-                blob = create_blob_from_local_file(url = url,
-                                                   file_path = file_path,
-                                                   mimetype = content_type,
-                                                   file_size = file_size)
-                yield blob
+        ) as proc:
+            try:
+               with io.TextIOWrapper(proc.stderr, encoding="utf-8") as stderr_wrapper:
+                    for line in stderr_wrapper:  # or another encoding
+                        # do something with line
+                        # trim the line
+                        #logger.info(f"    COMMAND({commandStr}): {line.strip()}")
+                        output_lines.append(line.strip())
+                        
+                        # extract <file_path> from line with "'<file_path>' saved"
+                        # example line: 2025-07-02 15:30:24 (3.95 MB/s) - ‘example.com/index.html’ saved [53415/53415]
+                        # cleanup single ticks
+                        defaulttick = "'"
+                        line = line.replace("‘", defaulttick).replace("’", defaulttick)
+                        startstr = f"{defaulttick}"
+                        endstr = f"{defaulttick} saved"
+                        if startstr in line and endstr in line:
+                            # extract file_path from line
+                            file_path = line.split(startstr)[1].split(endstr)[0]
+                            # derive url from file_path
+                            if file_path.startswith(directory_prefix):
+                                dir_prefix2 = directory_prefix
+                                if not file_path.endswith("/"):
+                                    dir_prefix2 = directory_prefix + "/"
+                                file_path_without_prefix = file_path[len(dir_prefix2):]
+                                url = "https://" + file_path_without_prefix
+                            else:
+                                url = "file://" + file_path
 
+                            #content_type = "text/html" # TODO: extract form wget output "Length: 2588 (2,5K) [text/html]"
+                            content_type = None
+                            file_size = os.path.getsize(file_path) # OR: # TODO: extract form wget output "Length: 2588 (2,5K) [text/html]"
+                            logger.info(f"{commandStr} downloaded url: {url} -> file_path: {file_path} (content_type: {content_type}, file_length: {file_size})")
 
+                            # Construct result Blob
+                            blob = create_blob_from_local_file(url = url,
+                                                            file_path = file_path,
+                                                            mimetype = content_type,
+                                                            file_size = file_size)
+                            downloaded = True
+                            yield blob
+
+                    if not downloaded:
+                        # no file was downloaded
+                        logger.warning(f"Command {commandStr} did not download any files")
+                        for line in output_lines:
+                            logger.info(f"    COMMAND({commandStr}): {line.strip()}")
+            except Exception as e:
+                logger.warning(f"Command {commandStr} caused en error: {e}")
+                for line in output_lines:
+                    logger.info(f"    COMMAND({commandStr}): {line.strip()}")
 
 
     # Probably not needed anymore:

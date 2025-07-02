@@ -33,7 +33,7 @@ def sha256sum_file(file_path: str) -> str:
 
     #print(f"md5sum({file_path}): {hexdigest}")
     #print(f"sha1sum({file_path}): {hexdigest}")
-    print(f"sha256sum({file_path}): {hexdigest}")
+    logger.debug(f"sha256sum_file({file_path}): {hexdigest}")
     return hexdigest
 
 

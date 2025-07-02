@@ -36,6 +36,7 @@ from factory.vectorstore_factory import print_vectorstore_stats
 from .document_splitter import split_single_document_into_parts_if_needed
 from common.plob_creator import create_virtual_plob
 from model.plob import Plob
+from common.utils.string_util import str_limit
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,9 @@ vectorStoreRetriever = None
 # in-memory queue of downloaded plocs with documents to process
 downloadedPlogsToProcessQueue = queue.Queue()
 
-
-
+# Lazy loading of plobs/documents: don't do this for better understanding of the logging output
+# If you want to lazy load plobs/documents, set this to True.
+minimize_lazyness = True
 
 indexing_single_run_counter = 0
 
@@ -99,13 +101,22 @@ def indexing_endless_loop_worker():
 
 def indexing_single_run():
     global indexing_single_run_counter
+    global minimize_lazyness
 
     # "index_build_id" to identify this run,
     # and to delete data from older runs from vectorStore
     now = datetime.now(timezone.utc).isoformat()
     index_build_id = f"build_index_run_{now}"
 
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
     logger.info(f"===== START (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
 
     """
     Here we decouple the crawling/loading and the processing/saving of the downloaded documents
@@ -113,15 +124,31 @@ def indexing_single_run():
     """
 
     # start the worker thread to crawl/load all documents
-    threading.Thread(target=download_all_documents_and_put_them_into_queue, args=(), daemon=False).start()
-
+    if minimize_lazyness:
+        # Better logging output, but slower
+        # (because loading and processing is done sequentially)
+        logger.info(f"===== NO lazy loading of Plobs and their document parts (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        download_all_documents_and_put_them_into_queue()
+    else:
+        # Faster, but more complex logging output
+        # (because loading and processing is mixed)
+        logger.info(f"===== LAYZ LOADING of Plobs and their document parts (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        threading.Thread(target=download_all_documents_and_put_them_into_queue, args=(), daemon=False).start()
 
     # process all documents from the queue
     process_all_plobs_from_queue_worker(index_build_id)
 
     # wait until all documents are completely processed - needed before we can clean the vectorStore
     downloadedPlogsToProcessQueue.join()
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
     logger.info(f"===== ALL DOCUMENTS PROCESSED (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
 
     # cleanup of vectorStore
     logger.info(f"===== RESULTS BEFORE CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
@@ -131,7 +158,16 @@ def indexing_single_run():
     print_vectorstore_stats()
 
     # single run done
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
     logger.info(f"===== RESULTS (#{indexing_single_run_counter}, '{index_build_id}') =====")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    logger.info(f"===== ")
+    
     print_all_from_sqldb()
     print_vectorstore_stats()
     #vectorStore = get_vectorstore()
@@ -142,6 +178,8 @@ def indexing_single_run():
 
 def download_all_documents_and_put_them_into_queue():
     logger.info(f"== download_all_documents_and_put_them_into_queue(): Loading ...")
+    global minimize_lazyness
+
     document_loaders: List[BaseLoader] = get_document_loaders()
     for document_loader in document_loaders:
         # single document loader (from the config) to process
@@ -149,17 +187,30 @@ def download_all_documents_and_put_them_into_queue():
         # Load plobs or documents
         if hasattr(document_loader, "lazy_load_plobs"):
             # Load plobs directly
+            logger.info(f"==")
             logger.info(f"== Lazy loading plobs using ... {document_loader_info_str}")
+            logger.info(f"==")
             plobs = document_loader.lazy_load_plobs()
+            if minimize_lazyness:
+                # Un-lazy
+                plobs = list(plobs)
+                for plob in plobs:
+                    # Un-lazy documents in plob
+                    plob.documents = list(plob.documents)
             put_downloaded_plobs_into_queue(document_loader_info_str, plobs)
-            logger.info(f"== Lazy loading plobs + putting into queue plobs ... {str_limit(plobs, 1024)}")
+            logger.info(f"== Lazy loading plobs + putting into queue plobs ... {document_loader_info_str} ... {str_limit(plobs, 1024)}")
         else:
             # Load documents
+            logger.info(f"==")
             logger.info(f"== Lazy loading plob with documents using ... {document_loader_info_str}")
+            logger.info(f"==")
             docs = document_loader.lazy_load()
+            if minimize_lazyness:
+                # Un-lazy
+                docs = list(docs)
             plob = create_single_plob_from_document_loader(document_loader_info_str, list(docs))
             put_downloaded_plobs_into_queue(document_loader_info_str, [plob])
-            logger.info(f"== Lazy loading plob with documents + putting into queue plob with documents ... {str_limit(docs, 1024)}")
+            logger.info(f"== Lazy loading plob with documents + putting into queue plob with documents ... {document_loader_info_str} ... {str_limit(docs, 1024)}")
 
     # Add end signal to queue to finisj this loading round
     downloadedPlogsToProcessQueue.put(None)
@@ -176,7 +227,11 @@ def create_single_plob_from_document_loader(document_loader_info_str: str, docum
 
 
 def put_downloaded_plobs_into_queue(context_str: str, plobs: Iterator[Plob]):
+    logger.info(f"==")
+    logger.info(f"==")
     logger.info(f"== START {context_str} ...")
+    logger.info(f"==")
+    logger.info(f"==")
     counter = 0
     for plob in plobs:
         downloadedPlogsToProcessQueue.put(plob)
@@ -185,7 +240,11 @@ def put_downloaded_plobs_into_queue(context_str: str, plobs: Iterator[Plob]):
 
 
 def process_all_plobs_from_queue_worker(index_build_id: str):
-    logger.info("== Split and save documents in databases - START")
+    logger.info(f"==")
+    logger.info(f"==")
+    logger.info(f"== Split and save documents in databases - START")
+    logger.info(f"==")
+    logger.info(f"==")
 
     while True:
         # get next document from queue
@@ -223,6 +282,17 @@ def process_all_plobs_from_queue_worker(index_build_id: str):
 #
 # processing a single plob and its documents
 #
+def plob_str_limit(plob: Plob, limit: int = 80) -> str:
+    """
+    Limit the string representation of a plob to a certain length.
+    """
+    # replace long parts (in an object copy)
+    p = plob.pydantic_deep_copy()
+    file_hash_limit = 5
+    p.file_sha256 = str_limit(p.file_sha256, file_hash_limit)
+
+    plob_str = str(p)
+    return str_limit(plob_str, limit)
 
 def process_single_plob_and_store_results_in_databases(index_build_id: str, plob: Plob):
     """
@@ -232,33 +302,36 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
     NOT LAZY: The plob is processed and saved in the SQL DB and the vectorstore.
     """
 
-    logger.info(f"plob={str_limit(plob)} ...")
+    plob_str = str_limit(f"plob({plob.id} - '{plob.url}')", 160)
+    logger.info(f"==")
+    logger.info(f"== {plob_str} ... START processing plob ...")
+    logger.info(f"==")
 
     # Get documents from plob and split them into parts if needed
     documents = plob.documents
     if not documents:
-        logger.info(f"plob={str_limit(plob)} ... no documents to process")
+        logger.info(f"{plob_str} ... no documents to process")
         return
     # One or multiple documents available
     splited_documents = []
     for doc in documents:
+        # split document into parts
         doc_splits = split_single_document_into_parts_if_needed(doc)
         splited_documents.extend(doc_splits)
-        doc = documents[0]
-        logger.info(f"plob={str_limit(plob)} ... only one document to process")
-        # split document into parts
 
     # Enrich documents with metadata
     doc_splits = _enrich_plob_documents(index_build_id, plob, doc_splits)
     doc_splits = list(doc_splits)  # convert to list to allow multiple iterations
-    logger.info(f"Documents of the plob: ")
+    logger.info(f"{plob_str} with {len(doc_splits)} documents (doc_splits) extracted")
     for doc in doc_splits:
-        logger.info(f"doc.metadata={str_limit(doc.metadata, 1024)} doc.page_content={str_limit(doc.page_content)}")
+        m = doc.metadata
+        doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'part_size': '{m['part_size']}', 'part_sha256': '{m['part_sha256']}'}}", 1024)
+        logger.info(f"doc.metadata={doc_metadata_str} doc.page_content={str_limit(doc.page_content)}")
 
     # Save plob in SQL DB and in vectorstore
     save_single_plob_and_its_documents_in_databases(plob, doc_splits)
 
-    logger.info(f"doc={str_limit(plob)} ... DONE")
+    logger.info(f"== {plob_str} ... DONE processing plob: {len(doc_splits)} documents (doc_splits) stored in SQL DB and vectorstore")
 
 
 

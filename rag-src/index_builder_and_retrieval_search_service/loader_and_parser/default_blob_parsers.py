@@ -58,12 +58,12 @@ class DefaultBlob2DocumentsParser(BaseBlobParser):
 
         if mimetype in self.handlers:
             handler = self.handlers[mimetype]
-            logger.info(f"Parsing blob to to documents: blob={blob}, handler={handler}")
+            logger.debug(f"Parsing blob to documents: blob={blob}, handler={handler}")
             # Parse the blob using the appropriate handler
             yield from handler.lazy_parse(blob)
         else:
             if self.fallback_parser is not None:
-                logger.info(f"Parsing blob to to documents FALLBACK: blob={blob} with fallback_parser={self.fallback_parser}")
+                logger.debug(f"Parsing blob to documents FALLBACK: blob={blob} with fallback_parser={self.fallback_parser}")
                 yield from self.fallback_parser.lazy_parse(blob)
             else:
                 raise ValueError(f"Unsupported mime type: {mimetype}")

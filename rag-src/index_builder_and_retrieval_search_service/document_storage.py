@@ -68,24 +68,24 @@ def save_single_plob_and_its_documents_in_databases(plob: Plob,
         # Cleanup: delete old document entry from SQL DB
         delete_old_plob_from_sqldb(sqlConnection, plob.url)
 
-        logger.info(f"url={plob.url} - deleted old plob entry from SQL DB")
+        logger.debug(f"url={plob.url} - deleted old plob entry from SQL DB")
 
         # Save plob in SQL DB
         now_timestamp = datetime.now(timezone.utc).isoformat()
         plob_stored = save_plob_only_in_sqldb(sqlConnection, plob, now_timestamp)
         plob_id = plob_stored.id
-        logger.info(f"url={plob.url} - saved doc in SQL DB: plob_id={plob_id}")
+        logger.debug(f"url={plob.url} - saved plob in SQL DB: plob_id={plob_id}")
 
         # Save documents of plob in SQL DB and vectorstore
         doc_contents_list = list(doc_contents)
         plob_documents_stored = save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection, plob_stored, doc_contents_list, now_timestamp)
         # Un-lazy
         plob_documents_stored_done = list(plob_documents_stored)
-        logger.info(f"url={plob.url} - saved doc parts in SQL DB and vectorstore: plob_id={plob_id}, doc_contents_stored={str_limit(plob_documents_stored_done, 1024)}")
+        logger.debug(f"url={plob.url} - saved doc parts in SQL DB and vectorstore: plob_id={plob_id}, doc_contents_stored={str_limit(plob_documents_stored_done, 1024)}")
 
         # Done
         sqlConnection.commit()
-        logger.info(f"url={plob.url} - DONE")
+        logger.debug(f"url={plob.url} - DONE - Saved plob and doc parts in SQL DB and vectorstore: plob_id={plob_id} with {len(plob_documents_stored_done)} doc parts")
         return plob_stored, plob_documents_stored_done
 
     except Exception as e:
@@ -113,21 +113,21 @@ def delete_old_plob_from_sqldb(sqlConnection: DBAPIConnection, plob_url: str):
     cursor.execute("DELETE FROM plob_document WHERE plob_id IN (SELECT id FROM plob WHERE url=?)", (plob_url,))
     rowcount = cursor.rowcount
     cursor.close()
-    logger.info(f"Deleted {rowcount} row(s) for url={plob_url} from 'plob_document' table")
+    logger.debug(f"Deleted {rowcount} row(s) for url={plob_url} from 'plob_document' table")
     
     # Delete in the table "document" second
     cursor = sqlConnection.cursor()
     cursor.execute("DELETE FROM plob WHERE url=?", (plob_url,))
     rowcount = cursor.rowcount
     cursor.close()
-    logger.info(f"Deleted {rowcount} row(s) with url={plob_url} from 'plob' table")
+    logger.debug(f"Deleted {rowcount} row(s) with url={plob_url} from 'plob' table")
 
 
 # save plob (without its documents) in SQL DB, and add IDs
 def save_plob_only_in_sqldb(sqlConnection: DBAPIConnection, plob: Plob, now_timestamp: str) -> Plob:
     # get id and more
     id = plob.id
-    logger.info(f"plob.id={id}, plob.url={plob.url}, plob.metadata={plob.metadata}")
+    logger.debug(f"plob.id={id}, plob.url={plob.url}, plob.metadata={plob.metadata}")
 
     # Insert new row into table "document"
     sqlConnection.execute(
@@ -137,7 +137,7 @@ def save_plob_only_in_sqldb(sqlConnection: DBAPIConnection, plob: Plob, now_time
     )
 
     # done
-    logger.info(f"Inserted into 'plob' table row with plob.id={id}, plob.url={plob.url}, plob.metadata={plob.metadata}")
+    logger.debug(f"Inserted into 'plob' table row with plob.id={id}, plob.url={plob.url}, plob.metadata={plob.metadata}")
     return plob
 
 
@@ -148,12 +148,12 @@ def save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnecti
                                                     now_timestamp: str
                                                    ) -> Iterator[Document]:
     plob_id = plob.id
-    logger.info(f"Start with documents of plob.id={plob_id}, plob.url={plob.url} ...")
+    logger.debug(f"Start with documents of plob.id={plob_id}, plob.url={plob.url} ...")
     content_count = 0
 
     # save content parts
     for document in documents:
-        logger.info(f"document.metadata={str_limit(document.metadata, 1024)} document.page_content='{str_limit(document.page_content)}'")
+        logger.debug(f"document.metadata={str_limit(document.metadata, 1024)} document.page_content='{str_limit(document.page_content)}'")
 
         #
         # save document in vectorstore and SQL DB (if not already there)
@@ -164,7 +164,7 @@ def save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnecti
         # insert new content part into SQL DB
         #
         document_anker = document.metadata.get("anker")
-        logger.info(f"insert plob_document row: document_id={plob_id}, content_sha256={document_sha256}, document_anker={document_anker}")
+        logger.debug(f"insert plob_document row: document_id={plob_id}, content_sha256={document_sha256}, document_anker={document_anker}")
         cursor = sqlConnection.cursor()
         cursor.execute(
             """INSERT INTO plob_document (plob_id, document_sha256, document_anker, row_last_modified)
@@ -180,7 +180,7 @@ def save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnecti
     # loop done without exception
 
     # iteration done
-    logger.info(f"{content_count} plob_document row(s) inserted - DONE")
+    logger.debug(f"{content_count} plob_document row(s) inserted - DONE")
 
 
 
@@ -215,7 +215,12 @@ def save_single_document_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnection
         # save content in vectorstore
         logger.debug(f"Add document with sha256={document_sha256} to vectorStore")
         resultIds = _vectorStore.add_texts(texts=[document_content], metadatas=[document.metadata],) # ids=[<UUID>])
-        logger.info(f"Added document(s) with id(s)={resultIds} to vectorStore")
+        
+        # final logging
+        if logger.isEnabledFor(logging.DEBUG):
+            m = document.metadata
+            doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'part_size': '{m['part_size']}', 'part_sha256': '{m['part_sha256']}'}}", 1024)
+            logger.debug(f"Added document to vectorStore with id(s)={resultIds}: {doc_metadata_str}, content_sha256={document_sha256}, content_content={str_limit(document_content)}")
 
         # done
         return document_sha256

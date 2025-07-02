@@ -64,11 +64,11 @@ def get_vectorstore_stats(log_all_entries: bool = False) -> str:
             objs = weaviate_client.collections.get(collection_name)
             result = ""
             if log_all_entries:
-                result +=     f"xxxxxxxx Collection '{collection_name}' contains the following {len(objs)} objects:\n"
+                result +=     f"Collection '{collection_name}' contains the following {len(objs)} objects:\n"
                 for obj in objs.iterator(include_vector=False):
-                    result += f"    xxxx Object ID: {obj.uuid}, Properties: {obj.properties}\n"
+                    result += f"    Object ID: {obj.uuid}, Properties: {obj.properties}\n"
             else:
-                result = f"xxxxxxxx Collection '{collection_name}' contains {len(objs)} objects."
+                result = f"Collection '{collection_name}' contains {len(objs)} objects."
             return result
         else:
             return "No (Weaviate) collection available."
@@ -76,17 +76,23 @@ def get_vectorstore_stats(log_all_entries: bool = False) -> str:
         return "No (Weaviate) client available."
 
 def print_vectorstore_stats() -> None:
-    stats = get_vectorstore_stats(True)
-    logger.info(stats)
+    if logger.isEnabledFor(logging.DEBUG):
+        stats = get_vectorstore_stats(True)
+        logger.debug(stats)
+    else:
+        stats = get_vectorstore_stats(False)
+        logger.info(stats)
 
+
+get_weaviate_client_was_called = False
 
 @cache
-def get_weaviate_client() -> WeaviateClient:
+def get_weaviate_client(log_metadata = False) -> WeaviateClient:
     """Get the Weaviate client."""
 
     #global weaviate_client
     global collection_prefix
-
+    global get_weaviate_client_was_called
 
     # Load config (preparation)
     config_vectorstore_database = deep_get(settings, "config.common.databases.vectorstore")
@@ -108,13 +114,15 @@ def get_weaviate_client() -> WeaviateClient:
     logger.info(f"weaviate_client.is_ready()={weaviate_client.is_ready()}")
 
     # Get meta information using the Weaviate client
-    meta_info = weaviate_client.get_meta()
-    meta_info['modules'] = "..."
-    all_collections = weaviate_client.collections.list_all(simple = True)
-    # Print meta information
-    logger.info(f"Weaviate Meta Information: {json.dumps(meta_info, indent=2)}")
-    logger.info(f"Weaviate all_collections: {all_collections}")
+    if log_metadata or not get_weaviate_client_was_called:
+        meta_info = weaviate_client.get_meta()
+        meta_info['modules'] = "..."
+        all_collections = weaviate_client.collections.list_all(simple = True)
+        # Print meta information
+        logger.info(f"Weaviate Meta Information: {json.dumps(meta_info, indent=2)}")
+        logger.info(f"Weaviate all_collections: {all_collections}")
 
+    get_weaviate_client_was_called = True
     return weaviate_client
 
 # def get_newest_collection_name() -> Optional[str]:

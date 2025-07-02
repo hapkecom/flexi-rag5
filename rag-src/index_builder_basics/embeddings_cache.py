@@ -111,7 +111,7 @@ def get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(text: str) ->
 
     # preparation
     content_sha256 = sha256sum_str(text)
-    logger.debug(f"content_sha256={content_sha256}, embedding_model_id='{embedding_model_id}')")
+    #logger.debug(f"content_sha256={content_sha256}, embedding_model_id='{embedding_model_id}')")
     embedding = None
     sqlConnection = get_2nd_sql_database_connection_after_setup()
 
@@ -124,12 +124,12 @@ def get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(text: str) ->
 
         if row:
             # document is already in SQL DB: read embedding
-            logger.debug(f"embedding of document {content_sha256} already in SQL DB")
+            logger.debug(f"embedding of document already in SQL DB: sha256={content_sha256}, content={str_limit(text)}")
             embedding_json = row[0]
             embedding = json.loads(embedding_json)
         else:
             # document is NOT in SQL DB
-            logger.debug(f"embedding of document {content_sha256} NOT in SQL DB - calculate it")
+            logger.debug(f"embedding of document NOT YET in SQL DB - calculate it: sha256={content_sha256}, content={str_limit(text)}")
 
             # claculate the embedding
             embeddings: Embeddings = get_default_embeddings()

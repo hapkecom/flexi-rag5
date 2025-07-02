@@ -78,7 +78,7 @@ class BlobParserDocumentLoader(BaseLoader):
         # Blob by blob
         for blob in self.blobLoader.yield_blobs():
             # Extract text from downloaded file
-            logger.info(f"Blob to parse: {blob}")
+            logger.debug(f"Blob to parse: {blob}")
 
             # Check if blobParser contains function "lazy_parse2media"
             if hasattr(self.blobParser, "lazy_parse2plob"):
@@ -97,5 +97,5 @@ class BlobParserDocumentLoader(BaseLoader):
                 plob.documents = list(documents)
 
                 # Result
-                logger.info(f"Extracted documents and created plob - yielded now: {plob}")
+                logger.info(f"Extracted documents and created plob - yielded now: {plob} with {len(plob.documents)} documents")
                 yield plob
