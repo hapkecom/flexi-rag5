@@ -184,9 +184,9 @@ config:
     #     The "class" is of type langchain_community.document_loaders.BaseLoader
     #     with is the base of all "normal" document loader in Langchain..
     loaders:
-      # Load PDf test document from a website
+      # Load PDF test document from a website
       test-pdf-wgetblobloader-loader:
-        enabled: true
+        enabled: false
         type: "BlobLoader"
         # class=<module>.<blob-loader-class>
         class: document_loader_service.tools.WgetBlobLoader
@@ -219,7 +219,7 @@ config:
           #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
 
       test-markdown-filesystemblobloader-loader:
-        enabled: true
+        enabled: false
         type: "BlobLoader"
         # class=<module>.<blob-loader-class>
         class: langchain_community.document_loaders.blob_loaders.FileSystemBlobLoader
@@ -229,12 +229,25 @@ config:
           glob: "*.md"
           show_progress: true
 
+      # Load HTML documents from a Altlassian Confluence website
+      confluence-site-example-wget-with-command-loader:
+        enabled: false
+        type: "BlobLoader"
+        # class=<module>.<blob-loader-class>
+        class: document_loader_service.tools.WgetBlobLoader
+        args:
+          url: "https://openxt.atlassian.net/wiki/spaces/ds/overview"
+          max_files: 5
+          # --domains openxt.atlassian.net
+          command: 'wget --recursive --compression=auto --header="Authorization: Bearer MY-SECRET-TOKEN" --wait=1 --random-wait --no-parent --no-check-certificate --html-extension --convert-links --level=2 -e robots=off --header="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9" --header="Accept-Language: en-us,en;q=0.5" --reject-regex "version=|diffpages\.action|display\/~|viewpreviousversions\.action|viewinfo\.action|managepagenotifications\.action|listpages-dirview\.action|viewpagesrc\.action|pdfpageexport\.action|exportword|uploadimport\.action|diffpagesbyversion.action|dashboard\.action|listpages\.action|blogposts\.action|createblogpost\.action|copypage\.action|addfavourite\.action|listpagetemplates\.action|listlabels-heatmap\.action|listattachmentsforspace\.action|viewmailarchive\.action|viewspacesummary\.action|editspace\.action|peopledirectory\.action|configurerssfeed\.action|viewuserhistory\action|viewmyprofile\.action|display\/status\/.*\/list|viewmyfavourites\.action|viewnotifications\.action|viewmydrafts\.action|viewmysettings\.action|logout\.action|login\.action|revertpagebacktoversion|confirmattachmentversionremoval|editattachment\.action|editpage\.action|createpage\.action|listpages\.action|recentlyupdated\.action|removepage\.action|benryanconversion|confirmattachmentremoval\.action|editinword|editattachment\.action|downloadallattachments\.action|pagenotification\.action|template\.action|worddav|rssfeed\.action|\/feeds\/|changes\.action|sortBy=|showComment|spacedirectory|homepage\.action|viewuserhistory\.action|viewfollow\.action|opensearch|\/label\/|\/labels\/|showChildren=false|dosearchsite\.action|browsespace\.action|comment\.action|\/s\/|\/images\/" --header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.72 Safari/537.36" --directory-prefix "{directory_prefix}" "{url}"'
+
       # example URLs to crawl:
         #"https://dance123.org/",
         #"https://file-examples.com/storage/fe44eeb9cb66ab8ce934f14/2017/04/file_example_MP4_480_1_5MG.mp4",
         #"https://lilianweng.github.io/posts/2023-06-23-agent/",
         #"https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/",
         #"https://lilianweng.github.io/posts/2023-10-25-adv-attack-llm/",
+
 
   rag_indexing:
     enabled: true

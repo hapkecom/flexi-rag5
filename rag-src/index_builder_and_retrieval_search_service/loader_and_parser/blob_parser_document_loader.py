@@ -55,13 +55,17 @@ class BlobParserDocumentLoader(BaseLoader):
             # extract text from downloaded file
             logger.info(f"Blob to parse: {blob}")
 
-            # parse
-            documents = list(self.blobParser.lazy_parse(blob))
+            try:
+                # parse
+                documents = list(self.blobParser.lazy_parse(blob))
 
-            # result
-            logger.info(f"Extracted documents yielded now: {documents}")
-            yield from documents
+                # result
+                logger.info(f"Extracted documents yielded now: {documents}")
+                yield from documents
 
+            except Exception as e:
+                logger.warning(f"Error while parsing blob {blob}: {e} - continue with next")
+                continue
 
     def lazy_load_plobs(self) -> Iterator[Plob]:  # <-- Does not take any arguments
         """
@@ -80,22 +84,26 @@ class BlobParserDocumentLoader(BaseLoader):
             # Extract text from downloaded file
             logger.debug(f"Blob to parse: {blob}")
 
-            # Check if blobParser contains function "lazy_parse2media"
-            if hasattr(self.blobParser, "lazy_parse2plob"):
-                # Parse directly to plob
-                plob = list([self.blobParser.lazy_parse2plob(blob)])[0]
+            try:
+                # Check if blobParser contains function "lazy_parse2media"
+                if hasattr(self.blobParser, "lazy_parse2plob"):
+                    # Parse directly to plob
+                    plob = list([self.blobParser.lazy_parse2plob(blob)])[0]
 
-                # Result
-                logger.info(f"Extracted plob directly - yielded now: {plob}")
-                yield plob
-            else:
-                # Parse regularly - to documents
-                documents = list(self.blobParser.lazy_parse(blob))
+                    # Result
+                    logger.info(f"Extracted plob directly - yielded now: {plob}")
+                    yield plob
+                else:
+                    # Parse regularly - to documents
+                    documents = list(self.blobParser.lazy_parse(blob))
 
-                # Create plob containing the documents
-                plob = create_plob_with_metadata_of_blob(blob)
-                plob.documents = list(documents)
+                    # Create plob containing the documents
+                    plob = create_plob_with_metadata_of_blob(blob)
+                    plob.documents = list(documents)
 
-                # Result
-                logger.info(f"Extracted documents and created plob - yielded now: {plob} with {len(plob.documents)} documents")
-                yield plob
+                    # Result
+                    logger.info(f"Extracted documents and created plob - yielded now: {plob} with {len(plob.documents)} documents")
+                    yield plob
+            except Exception as e:
+                logger.warning(f"Error while parsing blob {blob}: {e} - continue with next")
+                continue

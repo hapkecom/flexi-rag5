@@ -42,7 +42,7 @@ def create_blob_from_local_file(url: str,
 
 def _guess_file_encoding(file_path: str) -> Optional[str]:
     try:
-        detected_encodings = detect_file_encodings(file_path)
+        detected_encodings = detect_file_encodings(file_path, timeout=30)
         if len(detected_encodings) > 0:
             # the most likely encoding is the first one
             return detected_encodings[0].encoding

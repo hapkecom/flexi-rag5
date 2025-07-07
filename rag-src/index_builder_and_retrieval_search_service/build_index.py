@@ -182,35 +182,40 @@ def download_all_documents_and_put_them_into_queue():
 
     document_loaders: List[BaseLoader] = get_document_loaders()
     for document_loader in document_loaders:
-        # single document loader (from the config) to process
-        document_loader_info_str = str(document_loader)
-        # Load plobs or documents
-        if hasattr(document_loader, "lazy_load_plobs"):
-            # Load plobs directly
-            logger.info(f"==")
-            logger.info(f"== Lazy loading plobs using ... {document_loader_info_str}")
-            logger.info(f"==")
-            plobs = document_loader.lazy_load_plobs()
-            if minimize_lazyness:
-                # Un-lazy
-                plobs = list(plobs)
-                for plob in plobs:
-                    # Un-lazy documents in plob
-                    plob.documents = list(plob.documents)
-            put_downloaded_plobs_into_queue(document_loader_info_str, plobs)
-            logger.info(f"== Lazy loading plobs + putting into queue plobs ... {document_loader_info_str} ... {str_limit(plobs, 1024)}")
-        else:
-            # Load documents
-            logger.info(f"==")
-            logger.info(f"== Lazy loading plob with documents using ... {document_loader_info_str}")
-            logger.info(f"==")
-            docs = document_loader.lazy_load()
-            if minimize_lazyness:
-                # Un-lazy
-                docs = list(docs)
-            plob = create_single_plob_from_document_loader(document_loader_info_str, list(docs))
-            put_downloaded_plobs_into_queue(document_loader_info_str, [plob])
-            logger.info(f"== Lazy loading plob with documents + putting into queue plob with documents ... {document_loader_info_str} ... {str_limit(docs, 1024)}")
+        try:
+            # single document loader (from the config) to process
+            document_loader_info_str = str(document_loader)
+            # Load plobs or documents
+            if hasattr(document_loader, "lazy_load_plobs"):
+                # Load plobs directly
+                logger.info(f"==")
+                logger.info(f"== Lazy loading plobs using ... {document_loader_info_str}")
+                logger.info(f"==")
+                plobs = document_loader.lazy_load_plobs()
+                if minimize_lazyness:
+                    # Un-lazy
+                    plobs = list(plobs)
+                    for plob in plobs:
+                        # Un-lazy documents in plob
+                        plob.documents = list(plob.documents)
+                put_downloaded_plobs_into_queue(document_loader_info_str, plobs)
+                logger.info(f"== Lazy loading plobs + putting into queue plobs ... {document_loader_info_str}")
+            else:
+                # Load documents
+                logger.info(f"==")
+                logger.info(f"== Lazy loading plob with documents using ... {document_loader_info_str}")
+                logger.info(f"==")
+                docs = document_loader.lazy_load()
+                if minimize_lazyness:
+                    # Un-lazy
+                    docs = list(docs)
+                plob = create_single_plob_from_document_loader(document_loader_info_str, list(docs))
+                put_downloaded_plobs_into_queue(document_loader_info_str, [plob])
+                logger.info(f"== Lazy loading plob with documents + putting into queue plob with documents ... {document_loader_info_str}")
+        except Exception as e:
+            # Error while loading documents
+            logger.error(f"Error while loading documents with: {e} - continue with next document loader")
+            continue
 
     # Add end signal to queue to finisj this loading round
     downloadedPlogsToProcessQueue.put(None)
@@ -257,7 +262,7 @@ def process_all_plobs_from_queue_worker(index_build_id: str):
             break
         else:
             # normal processing
-            logger.info(f"Next plob with documents from queue: Got it")
+            logger.debug(f"Next plob with documents from queue: Got it")
             process_single_plob_and_store_results_in_databases(index_build_id, plob)
             downloadedPlogsToProcessQueue.task_done()
 
@@ -303,9 +308,9 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
     """
 
     plob_str = str_limit(f"plob({plob.id} - '{plob.url}')", 160)
-    logger.info(f"==")
-    logger.info(f"== {plob_str} ... START processing plob ...")
-    logger.info(f"==")
+    logger.debug(f"==")
+    logger.info (f"== {plob_str} ... START processing plob with media_type={plob.media_type} ...")
+    logger.debug(f"==")
 
     # Get documents from plob and split them into parts if needed
     documents = plob.documents
@@ -322,16 +327,16 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
     # Enrich documents with metadata
     doc_splits = _enrich_plob_documents(index_build_id, plob, doc_splits)
     doc_splits = list(doc_splits)  # convert to list to allow multiple iterations
-    logger.info(f"{plob_str} with {len(doc_splits)} documents (doc_splits) extracted")
+    logger.info(f"{plob_str} with {len(doc_splits)} documents / parts extracted")
     for doc in doc_splits:
         m = doc.metadata
         doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'part_size': '{m['part_size']}', 'part_sha256': '{m['part_sha256']}'}}", 1024)
-        logger.info(f"doc.metadata={doc_metadata_str} doc.page_content={str_limit(doc.page_content)}")
+        logger.info(f"  document: {doc_metadata_str} document.page_content='{str_limit(doc.page_content)}'")
 
     # Save plob in SQL DB and in vectorstore
     save_single_plob_and_its_documents_in_databases(plob, doc_splits)
 
-    logger.info(f"== {plob_str} ... DONE processing plob: {len(doc_splits)} documents (doc_splits) stored in SQL DB and vectorstore")
+    logger.info(f"== {plob_str} ... DONE processing plob: {len(doc_splits)} documents / parts stored in SQL DB and vectorstore")
 
 
 

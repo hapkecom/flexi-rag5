@@ -147,7 +147,7 @@ def get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(text: str) ->
                 (content_sha256, text, embedding_model_id, embedding_json, now)
             )
             cursor2.close()
-            logger.info(f"inserted document row: sha256={content_sha256}, content={str_limit(text)}, embedding_model_id={embedding_model_id} into SQL DB")
+            logger.debug(f"inserted document row: sha256={content_sha256}, content={str_limit(text)}, embedding_model_id={embedding_model_id} into SQL DB")
 
         # DB cleanup
         cursor1.close()

@@ -16,11 +16,13 @@ logger = logging.getLogger(__name__)
 class WgetBlobLoader(BlobLoader):
     def __init__(self,
                  url: Optional[str] = None,
+                 max_files: int = -1,
                  command: Optional[str] = None,
                  **kwargs: Dict[str, Any]) -> None:
         """Initialize the WgetBlobLoader with a URL or a command."""
 
         self.url = url
+        self.max_files = max_files
         self.command = command
 
         if not self.url and not self.command:
@@ -31,20 +33,31 @@ class WgetBlobLoader(BlobLoader):
     ) -> Iterable[Blob]:
         """Yield blobs that match the requested pattern."""
         
-        # crawl with wget and iterate over the blobs (downloaded files)
+        # Crawl with wget and iterate over the blobs (downloaded files)
         logger.info(f"Downloading files from url='{self.url}', command='{str_limit(self.command, 80)}")
         blobs: Iterator[Blob] = []
         if self.command is None and self.url is None:
             raise ValueError("Either 'url' or 'command' must be provided to WgetBlobLoader.")
         if self.command is None:
-            # use the url to crawl with wget
+            # Use the url to crawl with wget
             logger.debug(f"Using URL '{self.url}' for crawling with wget")
             blobs = WgetBlobLoader.crawl_single_url_with_wget(self.url)
         else:
-            # use the command to crawl with wget
+            # Use the command to crawl with wget
             logger.debug(f"Using command for crawling with wget")
+            command = self.command
+            
+            # Tune command
+            if self.url is not None:
+                # Replace {url} in command with the actual url
+                command = command.replace("{url}", self.url)
             directory_prefix = "/tmp/wget"
-            blobs = WgetBlobLoader.crawl_with_single_command(self.command, directory_prefix)
+            if directory_prefix is not None:
+                # Replace {directory_prefix} in command with the actual directory_prefix
+                command = command.replace("{directory_prefix}", directory_prefix)
+            
+            # Exec command
+            blobs = WgetBlobLoader.crawl_with_single_command(command, directory_prefix, self.max_files)
 
         count = 0
         for blob in blobs:
@@ -67,7 +80,7 @@ class WgetBlobLoader(BlobLoader):
         return WgetBlobLoader.crawl_with_single_command(command, directory_prefix)
 
     @staticmethod
-    def crawl_with_single_command(command, directory_prefix) -> Iterator[Blob]:
+    def crawl_with_single_command(command, directory_prefix, max_files = None) -> Iterator[Blob]:
         # crawl with command(wget) with popen
         # and read name of downloaded files from stdin/stdout (with popen)
         import subprocess
@@ -78,8 +91,9 @@ class WgetBlobLoader(BlobLoader):
         commandStr = "WGET"
 
         # Collect outpout fromt stdout in array
-        output_lines = []
+        output_lines = [f"Command: '{command}'"]
         downloaded = False
+        file_count = 0
 
         # Run the command
         with subprocess.Popen(
@@ -91,44 +105,67 @@ class WgetBlobLoader(BlobLoader):
         ) as proc:
             try:
                with io.TextIOWrapper(proc.stderr, encoding="utf-8") as stderr_wrapper:
+                    content_type = None
                     for line in stderr_wrapper:  # or another encoding
-                        # do something with line
-                        # trim the line
-                        #logger.info(f"    COMMAND({commandStr}): {line.strip()}")
-                        output_lines.append(line.strip())
+                        # Do something with line
+                        if logger.isEnabledFor(logging.DEBUG):
+                            logger.debug(f"    COMMAND({commandStr}): {line.strip()}")
+                        else:
+                            output_lines.append(line.strip())
+
+                        # Check the max_blobs limit
+                        if max_files is not None and max_files > 0 and file_count >= max_files:
+                            logger.info(f"Reached max_files limit: {max_files}. Stopping further processing.")
+                            # kill the process
+                            proc.kill()
+                            break
                         
-                        # extract <file_path> from line with "'<file_path>' saved"
-                        # example line: 2025-07-02 15:30:24 (3.95 MB/s) - ‘example.com/index.html’ saved [53415/53415]
-                        # cleanup single ticks
-                        defaulttick = "'"
-                        line = line.replace("‘", defaulttick).replace("’", defaulttick)
-                        startstr = f"{defaulttick}"
-                        endstr = f"{defaulttick} saved"
-                        if startstr in line and endstr in line:
-                            # extract file_path from line
-                            file_path = line.split(startstr)[1].split(endstr)[0]
-                            # derive url from file_path
-                            if file_path.startswith(directory_prefix):
-                                dir_prefix2 = directory_prefix
-                                if not file_path.endswith("/"):
-                                    dir_prefix2 = directory_prefix + "/"
-                                file_path_without_prefix = file_path[len(dir_prefix2):]
-                                url = "https://" + file_path_without_prefix
-                            else:
-                                url = "file://" + file_path
+                        # Extract content type
+                        # from wget output "Length: 2588 (2,5K) [text/html]"
+                        if "Length:" in line:
+                            try:
+                                # Extract content type from the line
+                                startstr = "["
+                                endstr = "]"
+                                if startstr in line and endstr in line:
+                                    content_type = line.split(startstr)[1].split(endstr)[0]
+                                    logger.debug(f"Extracted content_type: {content_type}")
+                            except Exception as e:
+                                logger.warning(f"Error extracting content_type from line: {line.strip()} - {e}")
 
-                            #content_type = "text/html" # TODO: extract form wget output "Length: 2588 (2,5K) [text/html]"
-                            content_type = None
-                            file_size = os.path.getsize(file_path) # OR: # TODO: extract form wget output "Length: 2588 (2,5K) [text/html]"
-                            logger.info(f"{commandStr} downloaded url: {url} -> file_path: {file_path} (content_type: {content_type}, file_length: {file_size})")
+                        else:
+                            # Extract <file_path> from line with "'<file_path>' saved"
+                            # example line: 2025-07-02 15:30:24 (3.95 MB/s) - ‘example.com/index.html’ saved [53415/53415]
+                            # cleanup single ticks
+                            defaulttick = "'"
+                            line = line.replace("‘", defaulttick).replace("’", defaulttick)
+                            startstr = f"{defaulttick}"
+                            endstr = f"{defaulttick} saved"
+                            if startstr in line and endstr in line:
+                                # Extract file_path from line
+                                file_path = line.split(startstr)[1].split(endstr)[0]
+                                # Derive url from file_path
+                                if file_path.startswith(directory_prefix):
+                                    dir_prefix2 = directory_prefix
+                                    if not file_path.endswith("/"):
+                                        dir_prefix2 = directory_prefix + "/"
+                                    file_path_without_prefix = file_path[len(dir_prefix2):]
+                                    url = "https://" + file_path_without_prefix
+                                else:
+                                    url = "file://" + file_path
 
-                            # Construct result Blob
-                            blob = create_blob_from_local_file(url = url,
-                                                            file_path = file_path,
-                                                            mimetype = content_type,
-                                                            file_size = file_size)
-                            downloaded = True
-                            yield blob
+                                # Get details from downloaded file
+                                file_size = os.path.getsize(file_path) # OR: # TODO: extract form wget output "Length: 2588 (2,5K) [text/html]"
+                                logger.info(f"{commandStr} downloaded url: {url} -> file_path: {file_path} (content_type: {content_type}, file_length: {file_size})")
+
+                                # Construct result Blob
+                                blob = create_blob_from_local_file(url = url,
+                                                                file_path = file_path,
+                                                                mimetype = content_type,
+                                                                file_size = file_size)
+                                downloaded = True
+                                file_count += 1
+                                yield blob
 
                     if not downloaded:
                         # no file was downloaded
