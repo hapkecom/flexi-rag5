@@ -14,6 +14,8 @@ from common.utils.string_util import str_limit
 from langchain.text_splitter import TokenTextSplitter
 import tiktoken
 
+logger = logging.getLogger(__name__)
+
 chunk_size=500
 chunk_overlap=50
 
@@ -43,8 +45,8 @@ def split_single_document_into_parts_if_needed(doc: Document) -> List[Document]:
         # No need to split, but also add metadata
         doc_split = doc #.pydantic_deep_copy()
         doc_split.metadata["part_index"] = 0
-        doc_split.metadata["part_sha256"] = sha256sum_str(doc_split.page_content)
-        doc_split.metadata["part_size"] = len(doc_split.page_content)
+        doc_split.metadata["sha256"] = sha256sum_str(doc_split.page_content)
+        doc_split.metadata["size"] = len(doc_split.page_content)
         return [doc]
 
 
@@ -57,13 +59,9 @@ def split_single_document_into_parts(doc: Document) -> List[Document]:
 
     # add to metadata
     for i, doc_split in enumerate(doc_splits):
-        doc_split.metadata["part_index"] = i
-        doc_split.metadata["part_sha256"] = sha256sum_str(doc_split.page_content)
-        doc_split.metadata["part_size"] = len(doc_split.page_content)
-
-    # add metadata
-    #for doc_split in doc_splits:
         # doesn't exist yet: doc_split.metadata["document_id"] = doc.metadata["id"]
-        #doc_split.metadata["part_sha256"] = sha256sum_str(doc_split.page_content)
+        doc_split.metadata["part_index"] = i
+        doc_split.metadata["sha256"] = sha256sum_str(doc_split.page_content)
+        doc_split.metadata["size"] = len(doc_split.page_content)
 
     return doc_splits

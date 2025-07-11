@@ -219,7 +219,7 @@ def save_single_document_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnection
         # final logging
         if logger.isEnabledFor(logging.DEBUG):
             m = document.metadata
-            doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'part_size': '{m['part_size']}', 'part_sha256': '{m['part_sha256']}'}}", 1024)
+            doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'size': '{m['size']}', 'sha256': '{m['sha256']}'}}", 1024)
             logger.debug(f"Added document to vectorStore with id(s)={resultIds}: {doc_metadata_str}, content_sha256={document_sha256}, content_content={str_limit(document_content)}")
 
         # done

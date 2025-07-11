@@ -33,7 +33,7 @@ import queue
 from .document_storage import save_single_plob_and_its_documents_in_databases
 from index_builder_basics.document_storage_sql_database import print_all_from_sqldb
 from factory.vectorstore_factory import print_vectorstore_stats
-from .document_splitter import split_single_document_into_parts_if_needed
+from .document_splitter_and_summarizer import improve_and_split_single_document_into_parts
 from common.plob_creator import create_virtual_plob
 from model.plob import Plob
 from common.utils.string_util import str_limit
@@ -318,10 +318,12 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
         logger.info(f"{plob_str} ... no documents to process")
         return
     # One or multiple documents available
+    documents = _enrich_plob_documents(index_build_id, plob, documents)
     splited_documents = []
     for doc in documents:
         # split document into parts
-        doc_splits = split_single_document_into_parts_if_needed(doc)
+        logger.info(f"{plob_str} ... doc: {doc.metadata}")
+        doc_splits = improve_and_split_single_document_into_parts(doc)
         splited_documents.extend(doc_splits)
 
     # Enrich documents with metadata
@@ -330,7 +332,7 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
     logger.info(f"{plob_str} with {len(doc_splits)} documents / parts extracted")
     for doc in doc_splits:
         m = doc.metadata
-        doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'part_size': '{m['part_size']}', 'part_sha256': '{m['part_sha256']}'}}", 1024)
+        doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'anker': '{m['anker']}', 'size': '{m['size']}', 'sha256': '{m['sha256']}'}}", 1024)
         logger.info(f"  document: {doc_metadata_str} document.page_content='{str_limit(doc.page_content)}'")
 
     # Save plob in SQL DB and in vectorstore
@@ -400,8 +402,10 @@ def _enrich_plob_document(index_build_id: str,
     #documentpart_content.metadata["document_source"] = document_source
     if anker:
         document.metadata["source"] = f"{document_source}#{anker}"
+        document.metadata["anker"] = anker
     else:
         document.metadata["source"] = document_source
+        document.metadata["anker"] = ""
     document.metadata["title"] = plob_id
 
     return document

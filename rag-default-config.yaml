@@ -251,7 +251,8 @@ config:
 
   rag_indexing:
     enabled: true
-
+    index_include_summary: true
+    document_summarizer_chat_llm: Chat_default_llm
 
   rag_response:
     # select the LLMs used for the response generation
