@@ -117,7 +117,7 @@ async def enrich_question_str_with_retrieved_documents(
     logger.info("---ENRICH QUESTION WITH RETRIEVED DOCUMENTS---")
 
     # get the relevant documents
-    relevant_docs: List[Document] = await document_retrieval.get_relevant_documents_tuned(question_str)
+    relevant_docs: List[Document] = await document_retrieval.find_relevant_documents_tuned(question_str)
 
     # enrich the question with the retrieved documents
     enriched_question = attach_documents_to_question_str(question_str, relevant_docs)

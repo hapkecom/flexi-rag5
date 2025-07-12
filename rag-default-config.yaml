@@ -261,6 +261,10 @@ config:
     document_grader_chat_llm: Chat_default_llm
     rewrite_question_chat_llm: Chat_default_llm
 
+    rewrite_question_for_vectorsearch_retrieval: true
+    rewrite_question_for_keywordsearch_retrieval: true
+    hyde_for_vectorsearch_retrieval: true
+
     #default_chat_llm: ChatOpenAI_default_llm
     #default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming
     #document_grader_chat_llm: ChatOpenAI_strict_llm
