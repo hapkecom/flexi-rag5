@@ -119,9 +119,10 @@ def enrich_document_from_parent_document(
     # Optionally extend the anker metadata
     if part_type:
         if "anker" in parent_document.metadata:
+            document.metadata["anker"] = parent_document.metadata['anker']
             # extend the anker
-            separator = "-"
-            document.metadata["anker"] = f"{parent_document.metadata['anker']}{separator}{part_type}"
+            #separator = "-"
+            #document.metadata["anker"] = f"{parent_document.metadata['anker']}{separator}{part_type}"
         else:
             # set the anker
             document.metadata["anker"] = part_type
@@ -133,17 +134,17 @@ def enrich_document_from_parent_document(
     return document
 
 
-def add_or_extend_url_anker(url_with_optional_anker: str, anker_to_add: str, separator: str = "-") -> str:
-    """
-    Add or extend an anker of a URL.
-
-    If the anker already exists, it will be extended with separator + anker_to_add.
-    """
-    if not url_with_optional_anker:
-        return f"#{anker_to_add}"
-
-    if "#" in url_with_optional_anker:
-        return f"{url_with_optional_anker}{separator}{anker_to_add}"
-    else:
-        return f"{url_with_optional_anker}#{anker_to_add}"
+#def add_or_extend_url_anker(url_with_optional_anker: str, anker_to_add: str, separator: str = "-") -> str:
+#    """
+#    Add or extend an anker of a URL.
+#
+#    If the anker already exists, it will be extended with separator + anker_to_add.
+#    """
+#    if not url_with_optional_anker:
+#        return f"#{anker_to_add}"
+#
+#    if "#" in url_with_optional_anker:
+#        return f"{url_with_optional_anker}{separator}{anker_to_add}"
+#    else:
+#        return f"{url_with_optional_anker}#{anker_to_add}"
  

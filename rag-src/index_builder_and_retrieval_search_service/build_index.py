@@ -374,7 +374,7 @@ def _enrich_plob_document(index_build_id: str,
         document: The document to be enriched.
     """
 
-    # extract metadata from (parent) document
+    # Extract metadata from (parent) document
     plob_id = plob.id
     document_source = plob.metadata.get('source', None)
     if document_source is None:
@@ -385,9 +385,11 @@ def _enrich_plob_document(index_build_id: str,
         if document_title is None:
             document_title = plob.metadata.get('name', None)
             if document_title is None:
-                document_title = plob_id
+                document_title = document_source.replace("https://", "").replace("http://", "")
+                if document_title is None:
+                    document_title = plob_id
 
-    # extract anker from metadata
+    # Extract anker from metadata
     anker = None
     if "anker" in document.metadata:
         anker = document.metadata['anker']
@@ -396,16 +398,21 @@ def _enrich_plob_document(index_build_id: str,
     elif "start_index" in document.metadata:
         anker = document.metadata['start_index']
 
-    # add metadata
+    # Add metadata
     document.metadata["index_build_id"] = index_build_id
     document.metadata["plob_id"] = plob_id
+    document.metadata["title"] = document_title
     #documentpart_content.metadata["document_source"] = document_source
     if anker:
-        document.metadata["source"] = f"{document_source}#{anker}"
+        if "#" in document_source:
+            # Don't touch the source URL
+            document.metadata["source"] = document_source
+        else:
+            # Set the source URL with the anker
+            document.metadata["source"] = f"{document_source}#{anker}"
         document.metadata["anker"] = anker
     else:
         document.metadata["source"] = document_source
         document.metadata["anker"] = ""
-    document.metadata["title"] = plob_id
 
     return document

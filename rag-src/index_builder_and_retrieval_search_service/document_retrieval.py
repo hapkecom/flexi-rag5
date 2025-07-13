@@ -36,36 +36,34 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
        Enrich with a tuned question
     """
 
-
-
     # Get the relevant documents
     retrieved_docs: List[Document] = await find_documents(question)
-    logger.info(f"AAAAAAAA Found {str(len(retrieved_docs))} docs without tuned question")
+    logger.info(f"Found {str(len(retrieved_docs))} docs without tuned question")
 
     # Do I need to enrich further to fine more documents?
     if enable_rewrite_question_for_vectorsearch_retrieval: # and (retrieved_docs is None or len(retrieved_docs) == 0):
         # Yes
-        logger.info("VVVVVVVV Rewrite question for vectorsearch retrieval")
+        logger.debug("Rewrite question for vectorsearch retrieval")
 
         # Improve the question for vectorsearch retrieval
         tuned_question_str: str = await rewrite_question_for_vectorsearch_retrieval(question)
 
         # Get the relevant documents (again)
         further_retrieved_docs = await find_documents(tuned_question_str)
-        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with 1x tuned question")
+        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with 1x tuned question (Rewrite question for vectorsearch retrieval)")
         retrieved_docs.extend(further_retrieved_docs)
 
     # Do I need to enrich further to fine more documents?
     if enable_rewrite_question_for_keywordsearch_retrieval: # and (retrieved_docs is None or len(retrieved_docs) == 0):
         # Yes
-        logger.info("KKKKKKKK Rewrite question for keywordsearch retrieval")
+        logger.debug("Rewrite question for keywordsearch retrieval")
 
         # Improve the question for keywordsearch retrieval
         tuned2_question_str: str = await rewrite_question_for_keywordsearch_retrieval(question)
 
         # Get the relevant documents (again)
         further_retrieved_docs = await find_documents(tuned2_question_str)
-        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with 2x tuned question")
+        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with 2x tuned question (Rewrite question for keywordsearch retrieval)")
         retrieved_docs.extend(further_retrieved_docs)
 
     # Do I need to filter the documents?
@@ -76,14 +74,14 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
         # calculate its embedding, and use it to find more relevant documents
         # - https://bdtechtalks.com/2024/10/06/advanced-rag-retrieval/
         # - https://mikulskibartosz.name/advanced-rag-techniques-explained
-        logger.info("HHHHHHHH - Use HyDE (Hypothetical Document Embeddings)")
+        logger.debug("Use HyDE (Hypothetical Document Embeddings)")
 
         # Improve the question for keywordsearch retrieval
         hypothetical_answer: str = await create_hypothetical_answer_for_hyde(question)
 
         # Get the relevant documents (again)
         further_retrieved_docs = await find_documents(question, hypothetical_answer)
-        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with HyDE")
+        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with HyDE (Hypothetical Document Embeddings)")
         retrieved_docs.extend(further_retrieved_docs)
 
     # Un-lazy
@@ -269,7 +267,7 @@ async def find_documents(
     str_for_embedding = alternative_str_for_embedding if alternative_str_for_embedding else question
     docs = vectorStore.similarity_search(str_for_embedding, k)
  
-    logger.debug(f"XXXXX Found {str(len(docs))} docs in vectorstore (un-graded candidates) for question: '{question}'")
+    logger.debug(f"Found {str(len(docs))} docs in vectorstore (un-graded candidates) for question: '{question}'")
     for doc in docs:
         logger.debug(f"Found doc={doc.metadata} content='{str_limit(doc.page_content, 1000)}'")
 
@@ -281,7 +279,7 @@ async def find_documents(
     relevant_docs = list(relevant_docs)
 
     # Result
-    logger.info(f"found {str(len(relevant_docs))} relevant docs out of {str(len(docs))} candidates")
+    logger.debug(f"found {str(len(relevant_docs))} relevant docs out of {str(len(docs))} candidates")
     return relevant_docs
 
 #
