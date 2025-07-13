@@ -146,5 +146,5 @@ async def _filter_and_sort_documents_by_numeric_relevance_score_for_question(
     scored_docs.sort(key=lambda x: x[0], reverse=True)
 
     # Result
-    logger.info(f"Found {str(len(scored_docs))} relevant ranked docs out of {str(len(documents))} candidates")
+    logger.debug(f"Found {str(len(scored_docs))} relevant ranked docs out of {str(len(documents))} candidates")
     return scored_docs

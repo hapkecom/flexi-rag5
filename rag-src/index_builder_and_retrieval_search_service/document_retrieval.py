@@ -93,7 +93,7 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
     len_before = len(retrieved_docs)
     retrieved_docs = remove_duplicates_from_documents(retrieved_docs)
     len_after = len(retrieved_docs)
-    logger.info(f"XXXXXXXXXXXXXXX Removed duplicates: filtered from {len_before} -> {len_after} retrieved docs")
+    logger.info(f"Removed duplicates from {len_before} -> {len_after} retrieved docs")
 
     # Do I need to score and to filter the documents?
     if enable_result_filtering:
@@ -106,14 +106,13 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
         retrieved_docs = list(retrieved_docs)
  
         len_after = len(retrieved_docs)
-        logger.info(f"YYYYYYYYYYYYYY Filtered and sorted: from {len_before} to {len_after} retrieved docs")
-
+        logger.info(f"Filtered (and sorted): from {len_before} -> {len_after} retrieved docs")
 
     # Merge documents form the same source / same URL (except anker)
     len_before = len(retrieved_docs)
     retrieved_docs = merge_documents_per_plob_id(retrieved_docs)
     len_after = len(retrieved_docs)
-    logger.info(f"ZZZZZZZZZZZZZZZZZZ Merged from {len_before} -> {len_after} retrieved docs")
+    logger.info(f"Merged from {len_before} -> {len_after} retrieved docs")
 
     # Filter and sort result documents again
     if enable_result_filtering:

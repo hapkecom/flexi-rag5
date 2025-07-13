@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 import logging
 from fastapi import APIRouter, HTTPException
 import json
+from common.utils.string_util import str_limit
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ async def search_endpoint(
     if engines:
         e = engines.lower()
         if "image" in e or "video" in e:
-            logger.info(f"Search query contains 'image' or 'video', skipping search. Engines: {engines}")
+            logger.info(f"API Search query contains 'image' or 'video', skipping search. Engines: {engines}")
 
     else:
         # Perform the search using the imported search function
@@ -58,10 +59,11 @@ async def search_endpoint(
 
         # Check if response is None
         if content_docs:
-            #logger.info(f"Response - contents (documents) found: {json.dumps(content_docs)}")
-            logger.info(f"Response - {len(content_docs)} contents (documents) found: {content_docs}")
+            logger.info(f"API Response: found {len(content_docs)} documents for query '{q}':")
+            for idx, doc in enumerate(content_docs):
+                logger.info(f"Document {idx+1}: {str_limit(str(doc), 10000)}")
         else:
-            logger.info(f"Response: no contents (documents) found for query '{q}'")
+            logger.info(f"API Response: no contents (documents) found for query '{q}'")
 
         # Format results
         for content_doc in content_docs:
@@ -89,8 +91,8 @@ async def search_endpoint(
         }
     )
 
-    logger.info("-------------------")
-    logger.info(f"SearxNG Response - {len(search_results)} results: {searxng_response}")
-    logger.info("-------------------")
+    logger.debug("-------------------")
+    logger.debug(f"SearxNG Response - {len(search_results)} results: {str_limit(str(searxng_response), 100)}")
+    logger.debug("-------------------")
 
     return searxng_response
