@@ -94,7 +94,7 @@ def get_summary_document(doc: Document) -> Document | None:
 def enrich_document_from_parent_document(
         document: Document,
         parent_document: Document,
-        optional_source_anker_to_add: str | None
+        part_type: str | None
         ) -> Document:
     """
     Copy metadata from parent document to the document.
@@ -105,31 +105,26 @@ def enrich_document_from_parent_document(
     document.metadata["sha256"] = sha256sum_str(document.page_content)
     document.metadata["size"] = len(document.page_content)
 
+    # Construct "part" metadata
+    parent_document_part = parent_document.metadata.get("part", "")
+    document.metadata["part"] = f"{parent_document_part}/{part_type}"
+
     # Copy metadata
     document.metadata["part_index"] = parent_document.metadata.get("part_index", 0)
     document.metadata["index_build_id"] = parent_document.metadata["index_build_id"]
     document.metadata["plob_id"] = parent_document.metadata["plob_id"]
     document.metadata["title"] = parent_document.metadata["title"] 
-
-    # Optionally extend the source URL / anker
-    # TODO: Remove this in the future - use anker-metadata only
-    if optional_source_anker_to_add:
-        document.metadata["source"] = add_or_extend_url_anker(
-            parent_document.metadata["source"],
-            optional_source_anker_to_add
-        )
-    else:
-        document.metadata["source"] = parent_document.metadata["source"]
+    document.metadata["source"] = parent_document.metadata["source"]
 
     # Optionally extend the anker metadata
-    if optional_source_anker_to_add:
+    if part_type:
         if "anker" in parent_document.metadata:
             # extend the anker
             separator = "-"
-            document.metadata["anker"] = f"{parent_document.metadata['anker']}{separator}{optional_source_anker_to_add}"
+            document.metadata["anker"] = f"{parent_document.metadata['anker']}{separator}{part_type}"
         else:
             # set the anker
-            document.metadata["anker"] = optional_source_anker_to_add
+            document.metadata["anker"] = part_type
     else:
         # no anker to add, just copy the existing one
         document.metadata["anker"] = parent_document.metadata.get("anker", "")

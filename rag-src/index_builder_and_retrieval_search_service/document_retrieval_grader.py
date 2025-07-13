@@ -9,10 +9,14 @@ from langchain_core.documents import Document
 from factory.llm_factory import get_document_grader_chat_llm
 #from rag_index_service.build_index import get_vectorstore, get_vectorstore_retriever, vectorStoreRetriever
 from common.utils.string_util import str_limit
+from model.ranked_document import RankedDocument
 
 logger = logging.getLogger(__name__)
 
 
+#
+# Binray grading of documents
+#
 async def filter_documents_based_on_binary_grade_for_question(question: str, documents: List[Document]) -> List[Document]:
     """
     Grade documents for a given question with an LLM (binary score).
@@ -63,16 +67,35 @@ async def filter_documents_based_on_binary_grade_for_question(question: str, doc
     return relevant_docs
 
 
-
+#
+# Numeric grading/ranking of documents
+#
 async def filter_and_sort_documents_by_numeric_relevance_score_for_question(
         question: str,
         documents: List[Document]
         ) -> List[Document]:
     """
     Calculate a numeric score of relevance for each document.
-
     Filter out all completely irrelevant documents.
+    Sort the documents by their relevance score: most relevant first, less relevant last.
 
+    This is a more advanced version of the document grader.
+    """
+    # Action
+    result_ranked_docs: List[RankedDocument] = await _filter_and_sort_documents_by_numeric_relevance_score_for_question(question, documents)
+
+    # Convert the list of tuples back to a list of Documents
+    result_docs: List[Document] = [doc for _, doc in result_ranked_docs]
+    return result_docs
+
+
+async def _filter_and_sort_documents_by_numeric_relevance_score_for_question(
+        question: str,
+        documents: List[Document]
+        ) -> List[RankedDocument]:
+    """
+    Calculate a numeric score of relevance for each document.
+    Filter out all completely irrelevant documents.
     Sort the documents by their relevance score: most relevant first, less relevant last.
 
     This is a more advanced version of the document grader.
@@ -111,7 +134,7 @@ async def filter_and_sort_documents_by_numeric_relevance_score_for_question(
 
     # Iterate over the documents
     # TODO: make this parallel/async with ainvoke
-    scored_docs: List[(int, Document)] = []
+    scored_docs: List[RankedDocument] = []
     for doc in documents:
         doc_txt = doc.page_content
         relevance_score = retrieval_grader.invoke({"question": question, "document": doc_txt})
@@ -122,9 +145,6 @@ async def filter_and_sort_documents_by_numeric_relevance_score_for_question(
     # Sort the documents by relevance score, most relevant first
     scored_docs.sort(key=lambda x: x[0], reverse=True)
 
-    # Convert the list of tuples back to a list of Documents
-    result_docs: List[Document] = [doc for _, doc in scored_docs]
-
     # Result
-    logger.info(f"Found {str(len(result_docs))} relevant docs out of {str(len(documents))} candidates")
-    return result_docs
+    logger.info(f"Found {str(len(scored_docs))} relevant ranked docs out of {str(len(documents))} candidates")
+    return scored_docs

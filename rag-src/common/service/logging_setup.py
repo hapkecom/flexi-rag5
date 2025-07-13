@@ -21,6 +21,7 @@ def setup_logging():
     logging.getLogger('index_builder_and_retrieval_search_service').setLevel(logging.DEBUG)
     logging.getLogger('index_builder_and_retrieval_search_service.build_index').setLevel(logging.INFO)
     logging.getLogger('index_builder_and_retrieval_search_service.loader_and_parser').setLevel(logging.INFO)
+    logging.getLogger('index_builder_and_retrieval_search_service.document_retrieval_grader').setLevel(logging.INFO)
     logging.getLogger('index_builder_and_retrieval_search_service.document_storage').setLevel(logging.INFO)
     logging.getLogger('index_builder_and_retrieval_search_service.document_summarizer').setLevel(logging.INFO)
     logging.getLogger('index_builder_basics').setLevel(logging.DEBUG)

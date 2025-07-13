@@ -43,7 +43,9 @@ def split_single_document_into_parts_if_needed(doc: Document) -> List[Document]:
         return split_single_document_into_parts(doc)
     else:
         # No need to split, but also add metadata
+        doc_part = doc.metadata.get("part", "")
         doc_split = doc #.pydantic_deep_copy()
+        doc_split.metadata["part"] = f"{doc_part}/split/0"
         doc_split.metadata["part_index"] = 0
         doc_split.metadata["sha256"] = sha256sum_str(doc_split.page_content)
         doc_split.metadata["size"] = len(doc_split.page_content)
@@ -58,8 +60,10 @@ def split_single_document_into_parts(doc: Document) -> List[Document]:
     doc_splits = text_splitter.split_documents([doc])
 
     # add to metadata
+    doc_part = doc.metadata.get("part", "")
     for i, doc_split in enumerate(doc_splits):
         # doesn't exist yet: doc_split.metadata["document_id"] = doc.metadata["id"]
+        doc_split.metadata["part"] = f"{doc_part}/split/{i}"
         doc_split.metadata["part_index"] = i
         doc_split.metadata["sha256"] = sha256sum_str(doc_split.page_content)
         doc_split.metadata["size"] = len(doc_split.page_content)

@@ -7,6 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 
 import common.service.config as config
 from factory.llm_factory import get_rewrite_question_chat_llm
+from common.utils.string_util import str_limit
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ async def rewrite_question_for_vectorsearch_retrieval(question: str) -> str:
     updated_question = question_rewriter.invoke({"question": question})
 
     # Result
-    logger.info(f"Updated question: '{question}' -> '{updated_question}'")
+    logger.info(f"Updated question: '{question}' -> '{str_limit(updated_question, 1000)}'")
     return updated_question
 
 
@@ -69,7 +70,7 @@ async def rewrite_question_for_keywordsearch_retrieval(question: str) -> str:
     updated_question = question_rewriter.invoke({"question": question})
 
     # Result
-    logger.info(f"Updated question: '{question}' -> '{updated_question}'")
+    logger.info(f"Updated question: '{question}' -> '{str_limit(updated_question, 1000)}'")
     return updated_question
 
 
@@ -116,5 +117,5 @@ async def create_hypothetical_answer_for_hyde(question: str) -> str:
     hypothetical_answer = question_rewriter.invoke({"question": question})
 
     # Result
-    logger.info(f"Hypothetical_answer: '{question}' -> '{hypothetical_answer}'")
+    logger.info(f"Hypothetical_answer: '{question}' -> '{str_limit(hypothetical_answer, 1000)}'")
     return hypothetical_answer

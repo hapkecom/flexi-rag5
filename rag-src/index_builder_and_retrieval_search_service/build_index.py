@@ -332,7 +332,7 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
     logger.info(f"{plob_str} with {len(doc_splits)} documents / parts extracted")
     for doc in doc_splits:
         m = doc.metadata
-        doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part_index': '{m['part_index']}', 'anker': '{m['anker']}', 'size': '{m['size']}', 'sha256': '{m['sha256']}'}}", 1024)
+        doc_metadata_str = str_limit(f"{{'source': '{m['source']}', 'title': '{m['title']}', 'part': '{m['part']}', 'part_index': '{m['part_index']}', 'anker': '{m['anker']}', 'size': '{m['size']}', 'sha256': '{m['sha256']}'}}", 1024)
         logger.info(f"  document: {doc_metadata_str} document.page_content='{str_limit(doc.page_content)}'")
 
     # Save plob in SQL DB and in vectorstore
