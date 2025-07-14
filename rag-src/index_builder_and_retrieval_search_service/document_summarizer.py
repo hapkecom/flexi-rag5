@@ -63,3 +63,72 @@ async def summarize_text(text: str) -> str | None:
         #return "No summary available."
         #return text[:100] + "..." if len(text) > 100 else text
         return None
+
+
+async def compact_and_deduplicate_text(text: str) -> str | None:
+    """
+    Compact text and remove duplicated content using LLM.
+    """
+
+    # Data model
+    class CompactedText(BaseModel):
+        """Compacted and deduplicated text."""
+
+        compacted_text: str = Field(
+            description="The compacted text with duplicates removed.",
+        )
+
+    # LLM with function call
+    llm = get_document_summarizer_chat_llm()
+    structured_llm_compactor = llm.with_structured_output(CompactedText)
+
+    # Prompt
+    system = """You are a helpful assistant for text compacting and deduplication. 
+Your task is to remove redundant information and duplicate content while preserving all unique and important information.
+You should:
+1. Identify and remove duplicate sentences, phrases, or concepts
+2. Consolidate repetitive information into single, clear statements
+3. Maintain the original meaning and all unique facts
+4. Preserve the original language and writing style
+5. Keep the text coherent and well-structured
+6. Do not summarize - preserve all unique content, just remove duplicates"""
+
+    user = """Please compact the following text by removing duplicated content and redundant information.
+        Keep all unique information and maintain the original language.
+
+        Important guidelines:
+        - Remove duplicate sentences, phrases, or repeated concepts
+        - Consolidate similar information into single, clear statements
+        - Preserve all unique facts, names, dates, and specific details
+        - Maintain logical flow and coherence
+        - Do not summarize - only remove duplicates
+        - Write the compacted text **in the same language as the original text**
+
+        Return **only** a JSON object with a single field "compacted_text".
+        Do not include any additional keys or commentary.
+
+        Text to compact:
+        {TEXT}
+        """
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            ("human", user),
+        ]
+    )
+
+    # Combine the prompt and the LLM
+    compactor = prompt | structured_llm_compactor
+
+    # Process the text
+    compacted_result = compactor.invoke({"TEXT": text})
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"compacted_result={compacted_result}    for text={str_limit(text, 1000)}")
+
+    # Result
+    if compacted_result.compacted_text:
+        return compacted_result.compacted_text
+    else:
+        logger.warning("No compacted text generated.")
+        return None

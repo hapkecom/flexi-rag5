@@ -1,6 +1,7 @@
 ### Retrieval of (Graded) Documents
 
 import logging
+from functools import cmp_to_key
 from typing import (
     Any,
     Dict,
@@ -14,6 +15,7 @@ from langchain_core.documents import Document
 from factory.vectorstore_factory import get_vectorstore
 from .document_retrieval_grader import filter_documents_based_on_binary_grade_for_question, filter_and_sort_documents_by_numeric_relevance_score_for_question
 from .question_rewriter import rewrite_question_for_vectorsearch_retrieval, rewrite_question_for_keywordsearch_retrieval, create_hypothetical_answer_for_hyde
+from .document_summarizer import compact_and_deduplicate_text
 
 from common.service.configloader import deep_get, settings
 
@@ -108,7 +110,7 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
 
     # Merge documents form the same source / same URL (except anker)
     len_before = len(retrieved_docs)
-    retrieved_docs = merge_documents_per_plob_id(retrieved_docs)
+    retrieved_docs = await merge_documents_per_plob_id(retrieved_docs)
     len_after = len(retrieved_docs)
     logger.info(f"Merged from {len_before} -> {len_after} retrieved docs")
 
@@ -128,8 +130,9 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
 
     return retrieved_docs
 
+
 #
-# Merging and grouping search results
+# Grouping and merging search results
 #
 
 def remove_duplicates_from_documents(documents: List[Document]) -> List[Document]:
@@ -156,7 +159,7 @@ def remove_duplicates_from_documents(documents: List[Document]) -> List[Document
     return unique_documents
 
 
-def merge_documents_per_plob_id(documents: List[Document]) -> List[Document]:
+async def merge_documents_per_plob_id(documents: List[Document]) -> List[Document]:
     """
     Merge documents per plob_id into a single document.
     
@@ -166,11 +169,11 @@ def merge_documents_per_plob_id(documents: List[Document]) -> List[Document]:
     Returns:
         List[Document]: List of merged documents, one per plob_id.
     """
-    merged_documents = _merge_documents_per_plob_id(documents)
+    merged_documents = await _merge_documents_per_plob_id(documents)
     return list(merged_documents.values())  # Convert dict values to list
 
 
-def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, Document]:
+async def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, Document]:
     """
     Merge documents per plob_id into a single document.
     
@@ -183,7 +186,7 @@ def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, Documen
     documents_by_plob_id: Dict[str, List[Document]] = group_documents_by_plob_id(documents)
     merged_documents: Dict[str, Document] = {}
     for plob_id, docs in documents_by_plob_id.items():
-        merged_doc = merge_documents_to_single_document(docs)
+        merged_doc = await merge_documents_to_single_document(docs)
         if merged_doc:
             merged_documents[plob_id] = merged_doc
         else:
@@ -191,7 +194,7 @@ def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, Documen
     return merged_documents
 
 
-def merge_documents_to_single_document(documents: List[Document]) -> Document | None:
+async def merge_documents_to_single_document(documents: List[Document]) -> Document | None:
     """
     Merge all documents (mainly the page content) into a single document.
     
@@ -204,8 +207,27 @@ def merge_documents_to_single_document(documents: List[Document]) -> Document | 
     if not documents:
         return None
 
+    # Does any document coatins a summary?
+    has_summary = any("/summary" in doc.metadata.get('part', '') for doc in documents)
+    logger.info(f"Documents to merge: {len(documents)} documents, has_summary={has_summary}")
+
+    # Sort first by part
+    documents = _sort_documents_of_a_plob_by_part(documents)
+
     # Merge the page content
-    merged_content = "\n\n".join(doc.page_content for doc in documents)
+    contents = [doc.page_content for doc in documents if doc.page_content]
+    merged_content = _merge_strings_with_with_overlap_detection_and_tail_recursion("", contents)
+
+    # Rewrite merged content if it conains a summary
+    if has_summary:
+        len_before = len(merged_content)
+        logger.debug(f"Merged_content contains a summary, rewriting it now: '{merged_content}'")
+        merged_content = await compact_and_deduplicate_text(merged_content)
+        len_after = len(merged_content)
+        logger.debug(f"Merged_content after rewriting: '{merged_content}'")
+        logger.info (f"Rewrote merged content from {len_before} -> {len_after} characters")
+    else:
+        logger.debug(f"Merged content (len={len(merged_content)}) does not contain a summary, skipping rewriting")
 
     # Copy the metadata, with first document as a base
     base_metadata = documents[0].metadata.copy()
@@ -220,6 +242,87 @@ def merge_documents_to_single_document(documents: List[Document]) -> Document | 
     merged_document = Document(page_content=merged_content, metadata=metadata)
 
     return merged_document
+
+
+def _sort_documents_of_a_plob_by_part(documents: List[Document]) -> List[Document]:
+    """
+    Sort documents of a plob by their 'part' metadata.
+    
+    Args:
+        documents (List[Document]): List of documents to sort.
+    
+    Returns:
+        List[Document]: Sorted list of documents.
+    """
+
+    # Sort documents by their 'part' metadata using a custom comparison function
+    documents.sort(key=cmp_to_key(_comparison_function_for_documents_by_part))
+    return documents
+
+
+def _comparison_function_for_documents_by_part(doc1: Document, doc2: Document) -> int:
+    """
+    Comparison function for sorting documents by their 'part' metadata.
+
+    Example parts:
+        /split/5
+        /split/5/summary
+        /split/5/summary/join
+        /split/13
+        /split/13/summary
+        /split/14
+        /split/14/summary
+
+    Become:
+        /split/5
+        /split/13
+        /split/14
+        /split/13/summary
+        /split/5/summary
+        /split/14/summary
+        /split/5/summary/join
+
+    Args:
+        doc1 (Document): First document to compare.
+        doc2 (Document): Second document to compare.
+    
+    Returns:
+        int: Negative if doc1 < doc2, positive if doc1 > doc2, zero if equal.
+    """
+    part1: str = doc1.metadata.get('part', '')
+    part2: str = doc2.metadata.get('part', '')
+
+    # Split the parts into components
+    part1_components = part1.split('/')
+    part2_components = part2.split('/')
+
+    # Compare the number of components first
+    if len(part1_components) < len(part2_components):
+        return -1
+    elif len(part1_components) > len(part2_components):
+        return 1
+
+    # Compare the components one by one
+    for comp1, comp2 in zip(part1_components, part2_components):
+        if comp1.isdigit() and comp2.isdigit():
+            # Compare as integers if both components are digits
+            if int(comp1) < int(comp2):
+                return -1
+            elif int(comp1) > int(comp2):
+                return 1
+        else:
+            # Compare as strings otherwise
+            if comp1 < comp2:
+                return -1
+            elif comp1 > comp2:
+                return 1
+    # If all components are equal, compare by length
+    if len(part1_components) < len(part2_components):
+        return -1
+    elif len(part1_components) > len(part2_components):
+        return 1
+    else:
+        return 0
 
 
 def group_documents_by_plob_id(documents: List[Document]) -> Dict[str, List[Document]]:
@@ -245,7 +348,8 @@ def group_documents_by_plob_id(documents: List[Document]) -> Dict[str, List[Docu
 # Pure search functions
 #
 
-@alru_cache(maxsize=config.maxCachedQuestions)
+# DONT CACHE BECAUSE OF CONTINOUS INDEX UPDATED:
+# @alru_cache(maxsize=config.maxCachedQuestions)
 async def find_documents(
     question: str,
     alternative_str_for_embedding: str | None = None,
@@ -282,7 +386,68 @@ async def find_documents(
     logger.debug(f"found {str(len(relevant_docs))} relevant docs out of {str(len(docs))} candidates")
     return relevant_docs
 
+
 #
-# Grouping and merging search results
+# String helper functions: overlap detection and merging
 #
 
+def _merge_strings_with_with_overlap_detection_and_tail_recursion(merged: str, remaining: List[str]) -> str:
+    """
+    Merge strings with overlap detection and tail recursion.
+
+    Overlap handling is used to compensate overlapping from document splitting.
+    
+    Args:
+        strings (List[str]): List of strings to merge.
+    
+    Returns:
+        str: Merged string with overlaps handled.
+    """
+    if not remaining:
+        return merged
+
+    # Take the first string from the remaining list
+    current_string = remaining[0]
+    remaining_strings = remaining[1:]
+
+    # Check for overlap with the merged string
+    merged = _merge_two_strings_with_with_overlap_detection(merged, current_string)
+    if not remaining_strings:
+        # If there are no remaining strings, return the merged result
+        return merged
+    else:
+        # Recursively merge the remaining strings
+        return _merge_strings_with_with_overlap_detection_and_tail_recursion(merged, remaining_strings)
+
+
+def _merge_two_strings_with_with_overlap_detection(s1: str, s2: str) -> str:
+    """
+    Merge two strings with overlap detection.
+
+    Overlap handling is used to compensate overlapping from document splitting.
+    
+    Args:
+        s1 (str): First string.
+        s2 (str): Second string.
+    
+    Returns:
+        str: Merged string with overlaps handled.
+    """
+
+    # Check for overlap with the first string in a range of half the length of the second string to 1
+    max_allowed_overlap_len = 300
+    min_overlap_len = 10
+    overlap_length = min(min(len(s1), len(s2)) // 2, max_allowed_overlap_len)
+    for i in range(overlap_length, min_overlap_len, -1):
+        if s1.endswith(s2[:i]):
+            # Overlap detected, merge without overlap
+            logger.info(f"Overlap detected of len: {i}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Overlap detected: '{s1[-i:]}'")
+                logger.debug(f"  Overlap detected in s1: '{s1}'")
+                logger.debug(f"  Overlap detected in s2: '{s2}'")
+
+            return s1 + s2[i:]
+
+    # No overlap, just append
+    return s1 + s2
