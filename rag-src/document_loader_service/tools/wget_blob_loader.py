@@ -177,6 +177,14 @@ class WgetBlobLoader(BlobLoader):
                 for line in output_lines:
                     logger.info(f"    COMMAND({commandStr}): {line.strip()}")
 
+                # log full stack trace of the exception e
+                logger.warning(f"Exception: {e}", exc_info=True)
+
+                # Exit the Python process with an error code
+                # ONLY DO THIS FOR TESTING wget_blob_loader.py:
+                #import sys
+                #sys.exit(1)
+
 
     # Probably not needed anymore:
     """
