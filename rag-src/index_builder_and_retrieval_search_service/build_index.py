@@ -381,7 +381,7 @@ def _enrich_plob_document(index_build_id: str,
         document_source = plob.url
     document_title = plob.metadata.get('title', None)
     if document_title is None:
-        document_title = plob.metadata.get('title', None)
+        document_title = document.metadata.get('title', None)
         if document_title is None:
             document_title = plob.metadata.get('name', None)
             if document_title is None:
