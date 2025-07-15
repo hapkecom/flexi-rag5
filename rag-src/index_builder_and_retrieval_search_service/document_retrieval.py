@@ -33,13 +33,17 @@ enable_hyde_for_vectorsearch_retrieval = deep_get(settings, "config.rag_response
 
 
 @alru_cache(maxsize=config.maxCachedQuestions)
-async def find_relevant_documents_tuned(question: str) -> List[Document]:
+async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> List[Document]:
     """Get relevant documents for a given question.
        Enrich with a tuned question
     """
 
+    # Parameters
+    max_max_result = 10
+    max_results = min(max_results, max_max_result)
+
     # Get the relevant documents
-    retrieved_docs: List[Document] = await find_documents(question)
+    retrieved_docs: List[Document] = await find_documents(question, k=2*max_results)
     logger.info(f"Found {str(len(retrieved_docs))} docs without tuned question")
 
     # Do I need to enrich further to fine more documents?
@@ -51,8 +55,8 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
         tuned_question_str: str = await rewrite_question_for_vectorsearch_retrieval(question)
 
         # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(tuned_question_str)
-        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with 1x tuned question (Rewrite question for vectorsearch retrieval)")
+        further_retrieved_docs = await find_documents(tuned_question_str, k=max_results)
+        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 1x tuned question (Rewrite question for vectorsearch retrieval)")
         retrieved_docs.extend(further_retrieved_docs)
 
     # Do I need to enrich further to fine more documents?
@@ -64,8 +68,8 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
         tuned2_question_str: str = await rewrite_question_for_keywordsearch_retrieval(question)
 
         # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(tuned2_question_str)
-        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with 2x tuned question (Rewrite question for keywordsearch retrieval)")
+        further_retrieved_docs = await find_documents(tuned2_question_str, k=max_results)
+        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 2x tuned question (Rewrite question for keywordsearch retrieval)")
         retrieved_docs.extend(further_retrieved_docs)
 
     # Do I need to filter the documents?
@@ -82,7 +86,7 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
         hypothetical_answer: str = await create_hypothetical_answer_for_hyde(question)
 
         # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(question, hypothetical_answer)
+        further_retrieved_docs = await find_documents(question, hypothetical_answer, k=max_results)
         logger.info(f"Found {str(len(further_retrieved_docs))} further docs with HyDE (Hypothetical Document Embeddings)")
         retrieved_docs.extend(further_retrieved_docs)
 
@@ -122,6 +126,10 @@ async def find_relevant_documents_tuned(question: str) -> List[Document]:
 
         # Un-lazy
         retrieved_docs = list(retrieved_docs)
+
+    # Final results limit enforcement
+    if max_results > 0:
+        retrieved_docs = retrieved_docs[:max_results]
 
     # Result
     logger.info(f"Found {str(len(retrieved_docs))} relevant docs after all processing steps")

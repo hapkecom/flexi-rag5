@@ -36,7 +36,7 @@ class SearxNGResponse(BaseModel):
 @router.get("/search", response_model=SearxNGResponse)
 async def search_endpoint(
     q: str = Query(..., description="Search query"),
-    max_results: int = Query(10, description="Maximum number of results to return"),
+    max_results: int = Query(5, description="Maximum number of results to return"),
     engines: Optional[str] = Query(None, description="Search engines to use")
 ) -> SearxNGResponse:
     """
@@ -55,7 +55,7 @@ async def search_endpoint(
 
     else:
         # Perform the search using the imported search function
-        content_docs: List[Document] = await search(q)
+        content_docs: List[Document] = await search(q, max_results)
 
         # Check if response is None
         if content_docs:

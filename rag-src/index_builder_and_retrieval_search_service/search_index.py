@@ -10,11 +10,11 @@ import common.service.config as config
 logger = logging.getLogger(__name__)
 
 
-async def search(question: str) -> List[Document]:
+async def search(question: str, max_results: int = 5) -> List[Document]:
     """Get relevant documents for a given question.
        Enrich with a tuned question
     """
-    return await find_relevant_documents_tuned(question)
+    return await find_relevant_documents_tuned(question, max_results)
 
 
 if __name__ == "__main__":
