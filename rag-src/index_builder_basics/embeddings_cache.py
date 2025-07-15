@@ -2,7 +2,7 @@
 from functools import cache
 from typing import List, Dict, Optional, Tuple
 from langchain_core.embeddings import Embeddings
-from langchain_core.pydantic_v1 import BaseModel
+from pydantic import BaseModel
 import logging
 import json
 from datetime import datetime, timezone
