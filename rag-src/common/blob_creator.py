@@ -19,43 +19,43 @@ def create_blob_from_local_file(url: str,
     #
     # TODO: Improve the retry logic, maybe find the root cause of the issue:
     #
-    """
-    rag-app       | 2025-07-14 20:57:43.992 INFO     wget_blob_loader.py:crawl_with_single_command() - WGET downloaded url: https://hapke.com/index.html -> file_path: /tmp/wget/hapke.com/index.html (content_type: text/html, file_length: 53415)
-    rag-app       | 2025-07-14 20:57:43.994 WARNING  wget_blob_loader.py:crawl_with_single_command() - Command WGET caused en error: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
-    rag-app       | 2025-07-14 20:57:43.994 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Command: 'wget --recursive --compression=auto --header="Authorization: Bearer MY-SECRET-TOKEN" --wait=1 --random-wait --no-parent --no-check-certificate --html-extension --convert-links --level=2 -e robots=off --header="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9" --header="Accept-Language: en-us,en;q=0.5" --reject-regex "favicon\.|css\/|img\/|js\/" --header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.72 Safari/537.36" --directory-prefix "/tmp/wget" "https://hapke.com/"'
-    rag-app       | 2025-07-14 20:57:43.994 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): --2025-07-14 20:57:43--  https://hapke.com/
-    rag-app       | 2025-07-14 20:57:43.994 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Resolving hapke.com (hapke.com)... 185.199.110.153, 185.199.111.153, 185.199.109.153, ...
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Connecting to hapke.com (hapke.com)|185.199.110.153|:443... connected.
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): HTTP request sent, awaiting response... 200 OK
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Length: 8598 (8.4K) [text/html]
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Saving to: ‘/tmp/wget/hapke.com/index.html’
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 0K ........                                              100% 5.27M=0.002s
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 
-    rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 2025-07-14 20:57:43 (5.27 MB/s) - ‘/tmp/wget/hapke.com/index.html’ saved [53415]
-    rag-app       | 2025-07-14 20:57:43.996 ERROR    wget_blob_loader.py:crawl_with_single_command() - Exception1:
-    rag-app       | 2025-07-14 20:57:43.996 ERROR    wget_blob_loader.py:crawl_with_single_command() - Traceback (most recent call last):
-    rag-app       |   File "/app/rag-src/document_loader_service/tools/wget_blob_loader.py", line 162, in crawl_with_single_command
-    rag-app       |     blob = create_blob_from_local_file(url = url,
-    rag-app       |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    rag-app       |   File "/app/rag-src/common/blob_creator.py", line 27, in create_blob_from_local_file
-    rag-app       |     "file_last_modified": datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-    rag-app       |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    rag-app       |   File "<frozen genericpath>", line 55, in getmtime
-    rag-app       | FileNotFoundError: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
-    rag-app       | 
-    rag-app       | 2025-07-14 20:57:43.997 ERROR    wget_blob_loader.py:crawl_with_single_command() - Exception2: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
-    rag-app       | Traceback (most recent call last):
-    rag-app       |   File "/app/rag-src/document_loader_service/tools/wget_blob_loader.py", line 162, in crawl_with_single_command
-    rag-app       |     blob = create_blob_from_local_file(url = url,
-    rag-app       |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    rag-app       |   File "/app/rag-src/common/blob_creator.py", line 27, in create_blob_from_local_file
-    rag-app       |     "file_last_modified": datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-    rag-app       |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    rag-app       |   File "<frozen genericpath>", line 55, in getmtime
-    rag-app       | FileNotFoundError: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
-    rag-app       | 2025-07-14 20:57:43.998 INFO     wget_blob_loader.py:yield_blobs() - Finished downloading 0 blobs from url='https://hapke.com/', command='wget --recursive --compression=auto --header="Authorization: Bearer MY-SECRET-TO...[627]'
-    """
+    # """
+    # rag-app       | 2025-07-14 20:57:43.992 INFO     wget_blob_loader.py:crawl_with_single_command() - WGET downloaded url: https://hapke.com/index.html -> file_path: /tmp/wget/hapke.com/index.html (content_type: text/html, file_length: 53415)
+    # rag-app       | 2025-07-14 20:57:43.994 WARNING  wget_blob_loader.py:crawl_with_single_command() - Command WGET caused en error: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
+    # rag-app       | 2025-07-14 20:57:43.994 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Command: 'wget --recursive --compression=auto --header="Authorization: Bearer MY-SECRET-TOKEN" --wait=1 --random-wait --no-parent --no-check-certificate --html-extension --convert-links --level=2 -e robots=off --header="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9" --header="Accept-Language: en-us,en;q=0.5" --reject-regex "favicon\.|css\/|img\/|js\/" --header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.72 Safari/537.36" --directory-prefix "/tmp/wget" "https://hapke.com/"'
+    # rag-app       | 2025-07-14 20:57:43.994 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): --2025-07-14 20:57:43--  https://hapke.com/
+    # rag-app       | 2025-07-14 20:57:43.994 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Resolving hapke.com (hapke.com)... 185.199.110.153, 185.199.111.153, 185.199.109.153, ...
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Connecting to hapke.com (hapke.com)|185.199.110.153|:443... connected.
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): HTTP request sent, awaiting response... 200 OK
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Length: 8598 (8.4K) [text/html]
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): Saving to: ‘/tmp/wget/hapke.com/index.html’
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 0K ........                                              100% 5.27M=0.002s
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 
+    # rag-app       | 2025-07-14 20:57:43.995 INFO     wget_blob_loader.py:crawl_with_single_command() -     COMMAND(WGET): 2025-07-14 20:57:43 (5.27 MB/s) - ‘/tmp/wget/hapke.com/index.html’ saved [53415]
+    # rag-app       | 2025-07-14 20:57:43.996 ERROR    wget_blob_loader.py:crawl_with_single_command() - Exception1:
+    # rag-app       | 2025-07-14 20:57:43.996 ERROR    wget_blob_loader.py:crawl_with_single_command() - Traceback (most recent call last):
+    # rag-app       |   File "/app/rag-src/document_loader_service/tools/wget_blob_loader.py", line 162, in crawl_with_single_command
+    # rag-app       |     blob = create_blob_from_local_file(url = url,
+    # rag-app       |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    # rag-app       |   File "/app/rag-src/common/blob_creator.py", line 27, in create_blob_from_local_file
+    # rag-app       |     "file_last_modified": datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    # rag-app       |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    # rag-app       |   File "<frozen genericpath>", line 55, in getmtime
+    # rag-app       | FileNotFoundError: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
+    # rag-app       | 
+    # rag-app       | 2025-07-14 20:57:43.997 ERROR    wget_blob_loader.py:crawl_with_single_command() - Exception2: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
+    # rag-app       | Traceback (most recent call last):
+    # rag-app       |   File "/app/rag-src/document_loader_service/tools/wget_blob_loader.py", line 162, in crawl_with_single_command
+    # rag-app       |     blob = create_blob_from_local_file(url = url,
+    # rag-app       |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    # rag-app       |   File "/app/rag-src/common/blob_creator.py", line 27, in create_blob_from_local_file
+    # rag-app       |     "file_last_modified": datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    # rag-app       |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    # rag-app       |   File "<frozen genericpath>", line 55, in getmtime
+    # rag-app       | FileNotFoundError: [Errno 2] No such file or directory: '/tmp/wget/hapke.com/index.html'
+    # rag-app       | 2025-07-14 20:57:43.998 INFO     wget_blob_loader.py:yield_blobs() - Finished downloading 0 blobs from url='https://hapke.com/', command='wget --recursive --compression=auto --header="Authorization: Bearer MY-SECRET-TO...[627]'
+    # """
 
     # Check if the file exists, retry few times if not found
     max_retries = 10
