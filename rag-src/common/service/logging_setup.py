@@ -11,7 +11,9 @@ def setup_logging():
         level=default_loglevel,
         datefmt='%Y-%m-%d %H:%M:%S')
 
+    #
     # Set different levels for different modules
+    #
     logging.getLogger('api').setLevel(logging.INFO)
     logging.getLogger('common').setLevel(logging.INFO)
     logging.getLogger('common.utils').setLevel(logging.INFO)
@@ -35,6 +37,18 @@ def setup_logging():
 
     logger = logging.getLogger(__name__)
 
+    #
+    # Suppress specific warnings
+    #
+
+    # Example: Filter out the websockets deprecation warning until dependencies are updated
+    # This addresses: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    #warnings.filterwarnings("ignore", message=".*websockets.server.WebSocketServerProtocol.*", category=DeprecationWarning)
+
+
+    #
+    # Done
+    #
     logger.info("Logging setup done")
 
 

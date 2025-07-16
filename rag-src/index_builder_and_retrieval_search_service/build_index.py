@@ -103,77 +103,82 @@ def indexing_single_run():
     global indexing_single_run_counter
     global minimize_lazyness
 
-    # "index_build_id" to identify this run,
-    # and to delete data from older runs from vectorStore
-    now = datetime.now(timezone.utc).isoformat()
-    index_build_id = f"build_index_run_{now}"
+    try:
 
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== START (#{indexing_single_run_counter}, '{index_build_id}') =====")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
+        # "index_build_id" to identify this run,
+        # and to delete data from older runs from vectorStore
+        now = datetime.now(timezone.utc).isoformat()
+        index_build_id = f"build_index_run_{now}"
 
-    """
-    Here we decouple the crawling/loading and the processing/saving of the downloaded documents
-    by using a queue and separated threads.
-    """
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== START (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
 
-    # start the worker thread to crawl/load all documents
-    if minimize_lazyness:
-        # Better logging output, but slower
-        # (because loading and processing is done sequentially)
-        logger.info(f"===== NO lazy loading of Plobs and their document parts (#{indexing_single_run_counter}, '{index_build_id}') =====")
-        download_all_documents_and_put_them_into_queue()
-    else:
-        # Faster, but more complex logging output
-        # (because loading and processing is mixed)
-        logger.info(f"===== LAYZ LOADING of Plobs and their document parts (#{indexing_single_run_counter}, '{index_build_id}') =====")
-        threading.Thread(target=download_all_documents_and_put_them_into_queue, args=(), daemon=False).start()
+        """
+        Here we decouple the crawling/loading and the processing/saving of the downloaded documents
+        by using a queue and separated threads.
+        """
 
-    # process all documents from the queue
-    process_all_plobs_from_queue_worker(index_build_id)
+        # start the worker thread to crawl/load all documents
+        if minimize_lazyness:
+            # Better logging output, but slower
+            # (because loading and processing is done sequentially)
+            logger.info(f"===== NO lazy loading of Plobs and their document parts (#{indexing_single_run_counter}, '{index_build_id}') =====")
+            download_all_documents_and_put_them_into_queue()
+        else:
+            # Faster, but more complex logging output
+            # (because loading and processing is mixed)
+            logger.info(f"===== LAYZ LOADING of Plobs and their document parts (#{indexing_single_run_counter}, '{index_build_id}') =====")
+            threading.Thread(target=download_all_documents_and_put_them_into_queue, args=(), daemon=False).start()
 
-    # wait until all documents are completely processed - needed before we can clean the vectorStore
-    downloadedPlogsToProcessQueue.join()
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ALL DOCUMENTS PROCESSED (#{indexing_single_run_counter}, '{index_build_id}') =====")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
+        # process all documents from the queue
+        process_all_plobs_from_queue_worker(index_build_id)
 
-    # cleanup of vectorStore
-    logger.info(f"===== RESULTS BEFORE CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
-    print_vectorstore_stats()
-    clean_vectorstore(index_build_id)
-    logger.info(f"===== RESULTS AFTER CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
-    print_vectorstore_stats()
+        # wait until all documents are completely processed - needed before we can clean the vectorStore
+        downloadedPlogsToProcessQueue.join()
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ALL DOCUMENTS PROCESSED (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
 
-    # single run done
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== RESULTS (#{indexing_single_run_counter}, '{index_build_id}') =====")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    logger.info(f"===== ")
-    
-    print_all_from_sqldb()
-    print_vectorstore_stats()
-    #vectorStore = get_vectorstore()
-    #logger.info(f"vectorStore = {vectorStore}")
-    logger.info(f"===== END (#{indexing_single_run_counter}, '{index_build_id}') =====")
-    indexing_single_run_counter += 1
+        # cleanup of vectorStore
+        logger.info(f"===== RESULTS BEFORE CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        print_vectorstore_stats()
+        clean_vectorstore(index_build_id)
+        logger.info(f"===== RESULTS AFTER CLEANUP (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        print_vectorstore_stats()
+
+        # single run done
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== RESULTS (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        logger.info(f"===== ")
+        
+        print_all_from_sqldb()
+        print_vectorstore_stats()
+        #vectorStore = get_vectorstore()
+        #logger.info(f"vectorStore = {vectorStore}")
+        logger.info(f"===== END (#{indexing_single_run_counter}, '{index_build_id}') =====")
+        indexing_single_run_counter += 1
+
+    except Exception as e:
+        logger.error(f"Error during indexing run (#{indexing_single_run_counter}, '{index_build_id}'): {e}")
 
 
 def download_all_documents_and_put_them_into_queue():
@@ -252,19 +257,25 @@ def process_all_plobs_from_queue_worker(index_build_id: str):
     logger.info(f"==")
 
     while True:
-        # get next document from queue
-        logger.info(f"Next doc from queue: Take it now (queue len={downloadedPlogsToProcessQueue.qsize()}) ... (blocking) ...")
-        plob = downloadedPlogsToProcessQueue.get()
-        if plob is None:
-            # end signal
-            logger.info("Next plob from queue: No more plobs/documents in queue (and no more will come)")
+        try:
+            # get next document from queue
+            logger.info(f"Next doc from queue: Take it now (queue len={downloadedPlogsToProcessQueue.qsize()}) ... (blocking) ...")
+            plob = downloadedPlogsToProcessQueue.get()
+            if plob is None:
+                # end signal
+                logger.info("Next plob from queue: No more plobs/documents in queue (and no more will come)")
+                downloadedPlogsToProcessQueue.task_done()
+                break
+            else:
+                # normal processing
+                logger.debug(f"Next plob with documents from queue: Got it")
+                process_single_plob_and_store_results_in_databases(index_build_id, plob)
+                downloadedPlogsToProcessQueue.task_done()
+        except Exception as e:
+            # Error while processing plob
+            logger.warning(f"Error while processing plob: {e} - continue with next plob")
             downloadedPlogsToProcessQueue.task_done()
-            break
-        else:
-            # normal processing
-            logger.debug(f"Next plob with documents from queue: Got it")
-            process_single_plob_and_store_results_in_databases(index_build_id, plob)
-            downloadedPlogsToProcessQueue.task_done()
+            continue
 
     logger.info("== Split and save documents in databases - END")
 
@@ -322,9 +333,13 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
     splited_documents = []
     for doc in documents:
         # split document into parts
-        logger.info(f"{plob_str} ... doc: {doc.metadata}")
-        doc_splits = improve_and_split_single_document_into_parts(doc)
-        splited_documents.extend(doc_splits)
+        try:
+            logger.info(f"{plob_str} ... doc: {doc.metadata}")
+            doc_splits = improve_and_split_single_document_into_parts(doc)
+            splited_documents.extend(doc_splits)
+        except Exception as e:
+            logger.warning(f"{plob_str} ... Error while splitting document: {e}")
+            continue
 
     # Enrich documents with metadata
     doc_splits = _enrich_plob_documents(index_build_id, plob, doc_splits)
@@ -379,9 +394,9 @@ def _enrich_plob_document(index_build_id: str,
     document_source = plob.metadata.get('source', None)
     if document_source is None:
         document_source = plob.url
-    document_title = plob.metadata.get('title', None)
+    document_title = document.metadata.get('title', None)
     if document_title is None:
-        document_title = document.metadata.get('title', None)
+        document_title = plob.metadata.get('title', None)
         if document_title is None:
             document_title = plob.metadata.get('name', None)
             if document_title is None:

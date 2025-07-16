@@ -1,7 +1,7 @@
-flexi-rag3
+flexi-ragX
 ==========
 
-Start DB
+Start DBs + RAG app
 
     # start
     ./rag-build-image.sh
@@ -15,6 +15,18 @@ Start DB
     
     # stop at the end
     ./all-stop.sh
+
+
+Rebuild and Restart
+
+    clear; ./rag-build-image.sh && ./all-rag-restart.sh
+    
+    
+
+Publish Docker image - to `docker.io/aisbreaker/rag-app:latest`
+
+    ./rag-push-image-incl-build.sh
+
 
 
 Services:

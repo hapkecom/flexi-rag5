@@ -168,7 +168,8 @@ config:
     enabled: true
 
     # minimim time between loading/indexing runs, in seconds
-    load_every_seconds: 3600        # 1 hour = 3600 seconds
+    #load_every_seconds: 3600        # 1 hour = 3600 seconds
+    load_every_seconds: 86400        # 1 day = 86400 seconds
 
     # The following loader types are supported:
     # - "BlobLoader" - to load content files

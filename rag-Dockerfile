@@ -15,6 +15,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     curl \
     less \
     net-tools \
+    procps \
     wget \
     && rm -rf /var/lib/apt/lists/*
 

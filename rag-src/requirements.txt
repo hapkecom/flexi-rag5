@@ -1,8 +1,9 @@
 #
 # rag
 #
-fastapi>=0.111.0
-unicorn
+fastapi>=0.116.1
+uvicorn[standard]>=0.35.0
+websockets>=15.0.1
 pydantic>=2.7.0
 langgraph>=0.1.7
 langserve>=0.2.2
