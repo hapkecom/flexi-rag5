@@ -176,12 +176,14 @@ def get_vectorstore() -> VectorStore:
 
     # Create a VectorStore instance
     collection_name = get_vectorstore_collection_name()
+
     vector_store = WeaviateVectorStore(
         client=get_weaviate_client(),
         index_name=collection_name,
         text_key="text",
-        embedding= get_cached_default_embeddings())
-    
+        embedding= get_cached_default_embeddings()
+    )
+
     # add function "get_by_ids" to vectors_store
     # def get_by_ids(self, ids):
     #     """

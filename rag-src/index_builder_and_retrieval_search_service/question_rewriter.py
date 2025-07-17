@@ -12,7 +12,7 @@ from common.utils.string_util import str_limit
 logger = logging.getLogger(__name__)
 
 
-@alru_cache(maxsize=config.maxCachedQuestions)
+@alru_cache(ttl=config.responseCacheTtlSeconds, maxsize=config.maxCachedQuestions)
 async def rewrite_question_for_vectorsearch_retrieval(question: str) -> str:
     """
     Rewrite a question for vectorstore retrieval.
@@ -43,7 +43,7 @@ async def rewrite_question_for_vectorsearch_retrieval(question: str) -> str:
     return updated_question
 
 
-@alru_cache(maxsize=config.maxCachedQuestions)
+@alru_cache(ttl=config.responseCacheTtlSeconds, maxsize=config.maxCachedQuestions)
 async def rewrite_question_for_keywordsearch_retrieval(question: str) -> str:
     """
     Rewrite a question for keywordsearch retrieval.
@@ -75,7 +75,7 @@ async def rewrite_question_for_keywordsearch_retrieval(question: str) -> str:
 
 
 
-@alru_cache(maxsize=config.maxCachedQuestions)
+@alru_cache(ttl=config.responseCacheTtlSeconds, maxsize=config.maxCachedQuestions)
 async def create_hypothetical_answer_for_hyde(question: str) -> str:
     """
     Generate a hypothetical answer using an LLM-based template,

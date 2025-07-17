@@ -1,7 +1,8 @@
 flexi-ragX
 ==========
 
-Start DBs + RAG app
+Start DBs + RAG app on local Docker
+... with `docker-compose` ...
 
     # start
     ./rag-build-image.sh
@@ -17,11 +18,16 @@ Start DBs + RAG app
     ./all-stop.sh
 
 
-Rebuild and Restart
+Rebuild and Restart on local Docker
 
     clear; ./rag-build-image.sh && ./all-rag-restart.sh
-    
-    
+
+
+Cleanup local Docker Volumes
+
+    ./all-stop.sh
+    sudo rm -rf /var/lib/docker/volumes/flexi-rag*/_data/*
+
 
 Publish Docker image - to `docker.io/aisbreaker/rag-app:latest`
 

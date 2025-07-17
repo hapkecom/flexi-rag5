@@ -252,7 +252,12 @@ config:
 
   rag_indexing:
     enabled: true
-    index_include_summary: true
+    # summary with LLM:
+    
+    # Calculate summaries for each document part (split) and index them?
+    # setting include_summary_in_search_results=true requires include_summary_in_search_index=true
+    include_summary_in_search_index: true
+    include_summary_in_search_results: true
     document_summarizer_chat_llm: Chat_default_llm
 
   rag_response:
@@ -265,6 +270,13 @@ config:
     rewrite_question_for_vectorsearch_retrieval: true
     rewrite_question_for_keywordsearch_retrieval: true
     hyde_for_vectorsearch_retrieval: true
+
+    # extended content: deliver more text left and right of the split point
+    deliver_extended_content: true
+
+    # summary with LLM (slowing down the response generation significantly):
+    rewrite_summaries: false
+    rewrite_complete_response: false
 
     #default_chat_llm: ChatOpenAI_default_llm
     #default_chat_llm_with_streaming: ChatOpenAI_default_llm_with_streaming

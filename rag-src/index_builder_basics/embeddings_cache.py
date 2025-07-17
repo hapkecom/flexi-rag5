@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 
 from functools import cache
 from typing import List, Dict, Optional, Tuple
@@ -11,6 +12,11 @@ from common.utils.string_util import str_limit
 from common.service.configloader import deep_get, settings
 from factory.llm_factory import get_default_embeddings
 from .document_storage_sql_database import get_2nd_sql_database_connection_after_setup
+if TYPE_CHECKING:
+    from _typeshed.dbapi import DBAPIConnection, DBAPICursor
+else:
+    DBAPIConnection = any
+    DBAPICursor = any
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +27,17 @@ logger = logging.getLogger(__name__)
 #
 
 @cache
-def get_cached_default_embeddings() -> Embeddings:
+def get_cached_default_embeddings(sqlConnection4Embeddings: DBAPIConnection = get_2nd_sql_database_connection_after_setup()) -> Embeddings:
     """Get the cache/performance-optimized default embedding model.
 
     Returns:
         The cached default embedding model.
     """
+
+    global defaultSqlConnection4Embeddings
+    if sqlConnection4Embeddings is not None:
+        defaultSqlConnection4Embeddings = sqlConnection4Embeddings 
+
     return CachedEmbeddings()
 
 #
@@ -40,7 +51,6 @@ class CachedEmbeddings(BaseModel, Embeddings):
        Cached in SQL database table "content".
     """
 
-    
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Get the embeddings of texts from the SQL DB or calculate and save it SQL DB.
 
@@ -68,8 +78,9 @@ class CachedEmbeddings(BaseModel, Embeddings):
             Embedding for the text.
         """
 
+        logger.debug(f"embed_document START ...")
         sha256, embedding = get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(text)
-        logger.debug(f"embedding_model_id='{embedding_model_id}', sha256={sha256}, embedding_len={len(embedding)}")
+        logger.debug(f"DONE: embedding_model_id='{embedding_model_id}', sha256={sha256}, embedding_len={len(embedding)}")
 
         return embedding
 
@@ -101,7 +112,13 @@ class CachedEmbeddings(BaseModel, Embeddings):
 # Basic functions
 #
 
-def get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(text: str) -> Tuple[str, List[float]]:
+# Set global variable sqlConnection4Embeddings
+defaultSqlConnection4Embeddings: Optional[DBAPIConnection] = None
+
+def get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(
+        text: str,
+        sqlConnection4Embeddings: Optional[DBAPIConnection] = defaultSqlConnection4Embeddings
+        ) -> Tuple[str, List[float]]:
     """
     Get the embedding of a text from the SQL DB or calculate and save it SQL DB.
     Use SQL database table "document" for caching.
@@ -109,26 +126,34 @@ def get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(text: str) ->
     Returns: The sha256 hash and embedding of the content.
     """
 
-    # preparation
+    # Preparation
     content_sha256 = sha256sum_str(text)
     #logger.debug(f"content_sha256={content_sha256}, embedding_model_id='{embedding_model_id}')")
     embedding = None
-    sqlConnection = get_2nd_sql_database_connection_after_setup()
+    sqlConnection = sqlConnection4Embeddings or defaultSqlConnection4Embeddings
 
-    # action
+    # Action
     try:
-        # check if content is already in SQL DB
+        # Pre-check DB
+        if sqlConnection is None:
+            logger.warning("sqlConnection4Embeddings is None - continue without SQL DB")
+            embeddings: Embeddings = get_default_embeddings()
+            embedding = embeddings.embed_documents([text])[0]
+            return content_sha256, embedding
+        # Continue with SQL DB
+
+        # Check if content is already in SQL DB
         cursor1 = sqlConnection.cursor()
         cursor1.execute("SELECT embedding_json FROM document WHERE sha256=? AND embedding_model_id=?", (content_sha256,embedding_model_id,))
         row = cursor1.fetchone()
 
         if row:
-            # document is already in SQL DB: read embedding
+            # Document is already in SQL DB: read embedding
             logger.debug(f"embedding of document already in SQL DB: sha256={content_sha256}, content={str_limit(text)}")
             embedding_json = row[0]
             embedding = json.loads(embedding_json)
         else:
-            # document is NOT in SQL DB
+            # Document is NOT in SQL DB
             logger.debug(f"embedding of document NOT YET in SQL DB - calculate it: sha256={content_sha256}, content={str_limit(text)}")
 
             # claculate the embedding

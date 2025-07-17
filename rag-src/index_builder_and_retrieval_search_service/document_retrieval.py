@@ -21,7 +21,7 @@ from common.service.configloader import deep_get, settings
 
 from async_lru import alru_cache
 import common.service.config as config
-from common.utils.string_util import str_limit
+from common.utils.string_util import str_limit, merge_strings_with_with_overlap_detection_and_tail_recursion, merge_two_strings_with_with_overlap_detection
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,15 @@ enable_result_filtering = True
 enable_rewrite_question_for_vectorsearch_retrieval = deep_get(settings, "config.rag_response.rewrite_question_for_vectorsearch_retrieval", default_value=False)
 enable_rewrite_question_for_keywordsearch_retrieval = deep_get(settings, "config.rag_response.rewrite_question_for_keywordsearch_retrieval", default_value=False)
 enable_hyde_for_vectorsearch_retrieval = deep_get(settings, "config.rag_response.hyde_for_vectorsearch_retrieval", default_value=False)
+deliver_extended_content = deep_get(settings, "config.rag_response.deliver_extended_content", default_value=True)
+
+enable_rewrite_summaries = deep_get(settings, "config.rag_response.rewrite_summaries", default_value=False)
+enable_rewrite_complete_response = deep_get(settings, "config.rag_response.rewrite_complete_response", default_value=False)
 
 
-@alru_cache(maxsize=config.maxCachedQuestions)
+
+
+@alru_cache(ttl=config.responseCacheTtlSeconds, maxsize=config.maxCachedQuestions)
 async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> List[Document]:
     """Get relevant documents for a given question.
        Enrich with a tuned question
@@ -68,7 +74,7 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
         tuned2_question_str: str = await rewrite_question_for_keywordsearch_retrieval(question)
 
         # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(tuned2_question_str, k=max_results)
+        further_retrieved_docs = await find_documents(tuned2_question_str, k=((1+max_results)//2) )
         logger.info(f"Found {str(len(further_retrieved_docs))} docs with 2x tuned question (Rewrite question for keywordsearch retrieval)")
         retrieved_docs.extend(further_retrieved_docs)
 
@@ -194,7 +200,7 @@ async def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, D
     documents_by_plob_id: Dict[str, List[Document]] = group_documents_by_plob_id(documents)
     merged_documents: Dict[str, Document] = {}
     for plob_id, docs in documents_by_plob_id.items():
-        merged_doc = await merge_documents_to_single_document(docs)
+        merged_doc = await merge_some_documents_of_a_plob_to_single_document(docs)
         if merged_doc:
             merged_documents[plob_id] = merged_doc
         else:
@@ -202,7 +208,7 @@ async def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, D
     return merged_documents
 
 
-async def merge_documents_to_single_document(documents: List[Document]) -> Document | None:
+async def merge_some_documents_of_a_plob_to_single_document(documents: List[Document]) -> Document | None:
     """
     Merge all documents (mainly the page content) into a single document.
     
@@ -215,30 +221,83 @@ async def merge_documents_to_single_document(documents: List[Document]) -> Docum
     if not documents:
         return None
 
-    # Does any document coatins a summary?
-    has_summary = any("/summary" in doc.metadata.get('part', '') for doc in documents)
-    logger.info(f"Documents to merge: {len(documents)} documents, has_summary={has_summary}")
-
     # Sort first by part
     documents = _sort_documents_of_a_plob_by_part(documents)
+    base_document = documents[0]
 
-    # Merge the page content
-    contents = [doc.page_content for doc in documents if doc.page_content]
-    merged_content = _merge_strings_with_with_overlap_detection_and_tail_recursion("", contents)
+    # Separate documents with summaries from those without
+    documents_with_summary    = [doc for doc in documents if "/summary" in     doc.metadata.get('part', '')]
+    documents_without_summary = [doc for doc in documents if "/summary" not in doc.metadata.get('part', '')]
+    logger.info(f"Documents to merge: {len(documents_without_summary)} documents without summary, {len(documents_with_summary)} documents with summary")
 
-    # Rewrite merged content if it conains a summary
-    if has_summary:
+    # Merge the page contents of documents without summary
+    without_summary_contents = [doc.page_content for doc in documents_without_summary if doc.page_content]
+    without_summary_merged_content = merge_strings_with_with_overlap_detection_and_tail_recursion(
+        "", without_summary_contents, separator_in_case_of_simple_concatenation="\n\n...\n\n"
+    )
+
+    # Merge the page contents of documents with summary
+    with_summary_contents = [doc.page_content for doc in documents_with_summary if doc.page_content]
+    with_summary_merged_content = merge_strings_with_with_overlap_detection_and_tail_recursion(
+        "", with_summary_contents, separator_in_case_of_simple_concatenation="\n\n...\n\n"
+    )
+    if len(with_summary_merged_content) > 0:
+        if len(with_summary_contents) >= 2:
+            # Multiple documents with summary
+            if enable_rewrite_summaries:
+                # Summarized the summaries
+                len_before = len(with_summary_merged_content)
+                logger.debug(f"Merged_content contains multiple summaries, rewriting it now: '{with_summary_merged_content}'")
+                with_summary_merged_content = await compact_and_deduplicate_text(with_summary_merged_content)
+                len_after = len(with_summary_merged_content)
+                logger.debug(f"Merged_content contains multiple summaries, after rewriting: '{with_summary_merged_content}'")
+                logger.info(f"Rewrote merged content (multiple summaries) from {len_before} -> {len_after} characters")
+            else:
+                # Simply use the merged content as is
+                logger.debug(f"Merged_content contains multiple summaries, but not rewriting it: '{with_summary_merged_content}'")
+        else:
+            # Single document with summary
+            logger.debug(f"Merged_content contains a single summary, not rewriting it: '{with_summary_merged_content}'")
+    else:
+        # No summaries at all
+        logger.debug("No summaries found in the documents, skipping summary merging")
+
+    # Merge the contents: without summary + with summary
+    merged_content = ""
+    logger.info(f"enable_rewrite_complete_response={enable_rewrite_complete_response}, len(without_summary_merged_content)={len(without_summary_merged_content)}, len(with_summary_merged_content)={len(with_summary_merged_content)}")
+    if not enable_rewrite_complete_response:
+        # Simply merge the contents without rewriting
+        if len(without_summary_merged_content) > 0 and len(with_summary_merged_content) > 0:
+            # Both contents exist, merge them
+            merged_content = (
+                without_summary_merged_content +
+                "\n\n**Summary / Zusammenfassung:**\n\n" +
+                with_summary_merged_content
+            )
+        elif len(without_summary_merged_content) > 0:
+            # Only without summary content exists
+            merged_content = without_summary_merged_content
+        elif len(with_summary_merged_content) > 0:
+            # Only with summary content exists
+            merged_content = with_summary_merged_content
+        logger.info (f"Simple merged content of {len(merged_content)} characters")
+    else:
+        # Merge and complely rewrite the content
+        merged_content = merge_two_strings_with_with_overlap_detection(
+            without_summary_merged_content,
+            with_summary_merged_content,
+            separator_in_case_of_simple_concatenation="\n\n...\n\n"
+        )
+        # Rewrite merged content if it conains a summary
         len_before = len(merged_content)
         logger.debug(f"Merged_content contains a summary, rewriting it now: '{merged_content}'")
         merged_content = await compact_and_deduplicate_text(merged_content)
         len_after = len(merged_content)
         logger.debug(f"Merged_content after rewriting: '{merged_content}'")
         logger.info (f"Rewrote merged content from {len_before} -> {len_after} characters")
-    else:
-        logger.debug(f"Merged content (len={len(merged_content)}) does not contain a summary, skipping rewriting")
 
     # Copy the metadata, with first document as a base
-    base_metadata = documents[0].metadata.copy()
+    base_metadata = base_document.metadata.copy()
     metadata: Dict[str, Any] = {}
     metadata["index_build_id"] = base_metadata['index_build_id']
     metadata["plob_id"] = base_metadata['plob_id']
@@ -356,8 +415,7 @@ def group_documents_by_plob_id(documents: List[Document]) -> Dict[str, List[Docu
 # Pure search functions
 #
 
-# DONT CACHE BECAUSE OF CONTINOUS INDEX UPDATED:
-# @alru_cache(maxsize=config.maxCachedQuestions)
+@alru_cache(ttl=config.responseCacheTtlSeconds, maxsize=config.maxCachedQuestions)
 async def find_documents(
     question: str,
     alternative_str_for_embedding: str | None = None,
@@ -383,6 +441,36 @@ async def find_documents(
     for doc in docs:
         logger.debug(f"Found doc={doc.metadata} content='{str_limit(doc.page_content, 1000)}'")
 
+    # Content from metadata - if index data and search results are not the same
+    consider_page_content_metadata = True
+    if consider_page_content_metadata:
+        for doc in docs:
+            if "page_content" in doc.metadata:
+                # Use the page_content from metadata if it exists
+                if doc.page_content != doc.metadata["page_content"]:
+                    logger.info(f"Use page_content from metadata for doc.sha256={doc.metadata.get('sha256', None)}")
+                    doc.page_content = doc.metadata["page_content"]
+                else:
+                    logger.info(f"Use page_content from document for doc.sha256={doc.metadata.get('sha256', None)}")
+
+    # Extended content?
+    if deliver_extended_content:
+        # Yes, deliver extended content
+        updated_docs: List[Document] = []
+        for doc in docs:
+            extended_page_content = doc.metadata.get("extended_page_content", None)
+            if extended_page_content:
+                # Extended content exists, use it
+                logger.debug(f"Use extended_page_content for doc.sha256={doc.metadata.get('sha256', None)}")
+                updated_doc = doc.model_copy(deep=True)
+                updated_doc.page_content = extended_page_content
+                updated_docs.append(updated_doc)
+            else:
+                # No extended content, use the original document
+                logger.warning
+                updated_docs.append(doc)
+        docs = updated_docs
+
     # Grade the documents
     #relevant_docs = await filter_documents_based_on_binary_grade_for_question(question, docs)
     relevant_docs = docs
@@ -394,68 +482,3 @@ async def find_documents(
     logger.debug(f"found {str(len(relevant_docs))} relevant docs out of {str(len(docs))} candidates")
     return relevant_docs
 
-
-#
-# String helper functions: overlap detection and merging
-#
-
-def _merge_strings_with_with_overlap_detection_and_tail_recursion(merged: str, remaining: List[str]) -> str:
-    """
-    Merge strings with overlap detection and tail recursion.
-
-    Overlap handling is used to compensate overlapping from document splitting.
-    
-    Args:
-        strings (List[str]): List of strings to merge.
-    
-    Returns:
-        str: Merged string with overlaps handled.
-    """
-    if not remaining:
-        return merged
-
-    # Take the first string from the remaining list
-    current_string = remaining[0]
-    remaining_strings = remaining[1:]
-
-    # Check for overlap with the merged string
-    merged = _merge_two_strings_with_with_overlap_detection(merged, current_string)
-    if not remaining_strings:
-        # If there are no remaining strings, return the merged result
-        return merged
-    else:
-        # Recursively merge the remaining strings
-        return _merge_strings_with_with_overlap_detection_and_tail_recursion(merged, remaining_strings)
-
-
-def _merge_two_strings_with_with_overlap_detection(s1: str, s2: str) -> str:
-    """
-    Merge two strings with overlap detection.
-
-    Overlap handling is used to compensate overlapping from document splitting.
-    
-    Args:
-        s1 (str): First string.
-        s2 (str): Second string.
-    
-    Returns:
-        str: Merged string with overlaps handled.
-    """
-
-    # Check for overlap with the first string in a range of half the length of the second string to 1
-    max_allowed_overlap_len = 300
-    min_overlap_len = 10
-    overlap_length = min(min(len(s1), len(s2)) // 2, max_allowed_overlap_len)
-    for i in range(overlap_length, min_overlap_len, -1):
-        if s1.endswith(s2[:i]):
-            # Overlap detected, merge without overlap
-            logger.info(f"Overlap detected of len: {i}")
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"Overlap detected: '{s1[-i:]}'")
-                logger.debug(f"  Overlap detected in s1: '{s1}'")
-                logger.debug(f"  Overlap detected in s2: '{s2}'")
-
-            return s1 + s2[i:]
-
-    # No overlap, just append
-    return s1 + s2

@@ -5,6 +5,7 @@
 
 # Constant values
 maxCachedQuestions = 128
+responseCacheTtlSeconds = 1*60  # 1 minute
 vectorsearchEnabled = True
 fulltextsearchEnabled = False
 answerGradingEnabled = True

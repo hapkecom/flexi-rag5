@@ -23,7 +23,7 @@ from langchain_core.embeddings import Embeddings
 import logging
 from common.utils.hash_util import sha256sum_str
 from common.utils.string_util import str_limit
-from index_builder_basics.document_storage_sql_database import get_sql_database_connection_after_setup
+from index_builder_basics.document_storage_sql_database import get_sql_database_connection_after_setup, get_2nd_sql_database_connection_after_setup
 from index_builder_basics.embeddings_cache import get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb
 from model.plob import Plob
 
@@ -64,6 +64,7 @@ def save_single_plob_and_its_documents_in_databases(plob: Plob,
     """
 
     sqlConnection = get_sql_database_connection_after_setup()
+    sqlConnection4Embeddings = get_2nd_sql_database_connection_after_setup()
     try:
         # Cleanup: delete old document entry from SQL DB
         delete_old_plob_from_sqldb(sqlConnection, plob.url)
@@ -78,7 +79,7 @@ def save_single_plob_and_its_documents_in_databases(plob: Plob,
 
         # Save documents of plob in SQL DB and vectorstore
         doc_contents_list = list(doc_contents)
-        plob_documents_stored = save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection, plob_stored, doc_contents_list, now_timestamp)
+        plob_documents_stored = save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection, sqlConnection4Embeddings, plob_stored, doc_contents_list, now_timestamp)
         # Un-lazy
         plob_documents_stored_done = list(plob_documents_stored)
         logger.debug(f"url={plob.url} - saved doc parts in SQL DB and vectorstore: plob_id={plob_id}, doc_contents_stored={str_limit(plob_documents_stored_done, 1024)}")
@@ -143,6 +144,7 @@ def save_plob_only_in_sqldb(sqlConnection: DBAPIConnection, plob: Plob, now_time
 
 # iterate over the documents, save them in SQL DB, and add IDs
 def save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnection,
+                                                    sqlConnection4Embeddings: DBAPIConnection,
                                                     plob: Plob,
                                                     documents: Iterator[Document],
                                                     now_timestamp: str
@@ -158,7 +160,7 @@ def save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnecti
         #
         # save document in vectorstore and SQL DB (if not already there)
         #
-        document_sha256 = save_single_document_in_vectorstore_and_sqldb(sqlConnection, document)
+        document_sha256 = save_single_document_in_vectorstore_and_sqldb(sqlConnection4Embeddings, document)
 
         #
         # insert new content part into SQL DB
@@ -188,7 +190,7 @@ def save_documents_of_plob_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnecti
 # processing a single content part
 #
 
-def save_single_document_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnection,
+def save_single_document_in_vectorstore_and_sqldb(sqlConnection4Embeddings: DBAPIConnection,
                                                   document: Document
                                                   ) -> str:
     """
@@ -207,14 +209,17 @@ def save_single_document_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnection
 
         # get/caclulate/save embedding from/to SQL DB
         document_content = document.page_content
-        document_sha256, content_embedding = get_or_caclulate_and_save_content_sha256_and_embedding_with_sqldb(sqlConnection, document_content)
-        
+        logger.debug("1/4: Before get_or_caclulate_and_save_content_sha256_and_embedding_with_sqldb()")
+        document_sha256, content_embedding = get_or_caclulate_and_save_content_sha256_and_embedding_with_sqldb(sqlConnection4Embeddings, document_content)
+        logger.debug("2/4: After get_or_caclulate_and_save_content_sha256_and_embedding_with_sqldb()")
+
         # enrich content metadata before adding it to the vectorstore
         document.metadata["document_sha256"] = document_sha256
 
-        # save content in vectorstore
-        logger.debug(f"Add document with sha256={document_sha256} to vectorStore")
+        # save content in vectorstore - get/caclulate/save embedding again inclusive SQL DB
+        logger.debug(f"3/4: Add document with sha256={document_sha256} to vectorStore")
         resultIds = _vectorStore.add_texts(texts=[document_content], metadatas=[document.metadata],) # ids=[<UUID>])
+        logger.debug("4/4: After adding to vectorstore")
         
         # final logging
         if logger.isEnabledFor(logging.DEBUG):
@@ -231,7 +236,7 @@ def save_single_document_in_vectorstore_and_sqldb(sqlConnection: DBAPIConnection
         #return None
 
 
-def get_or_caclulate_and_save_content_sha256_and_embedding_with_sqldb(sqlConnection: DBAPIConnection,
+def get_or_caclulate_and_save_content_sha256_and_embedding_with_sqldb(sqlConnection4Embeddings: DBAPIConnection,
                                                                       content: str
                                                                      ) -> Tuple[str, List[float]]:
     """
@@ -239,4 +244,4 @@ def get_or_caclulate_and_save_content_sha256_and_embedding_with_sqldb(sqlConnect
 
     Returns: The sha256 hash and embedding of the content.
     """
-    return get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(content)
+    return get_or_caclulate_and_save_text_sha256_and_embedding_with_sqldb(content, sqlConnection4Embeddings)
