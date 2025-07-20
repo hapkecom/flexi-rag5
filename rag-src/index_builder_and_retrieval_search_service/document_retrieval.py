@@ -21,7 +21,9 @@ from common.service.configloader import deep_get, settings
 
 from async_lru import alru_cache
 import common.service.config as config
+from common.utils.hash_util import sha256sum_str
 from common.utils.string_util import str_limit, merge_strings_with_with_overlap_detection_and_tail_recursion, merge_two_strings_with_with_overlap_detection
+from common.service.logging_tools import log_docs, doc2str
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +63,8 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
         tuned_question_str: str = await rewrite_question_for_vectorsearch_retrieval(question)
 
         # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(tuned_question_str, k=max_results)
-        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 1x tuned question (Rewrite question for vectorsearch retrieval)")
+        further_retrieved_docs = await find_documents(tuned_question_str, k=max_results, alpha=1.0)
+        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 1st tuned question (Rewrite question for vectorsearch retrieval)")
         retrieved_docs.extend(further_retrieved_docs)
 
     # Do I need to enrich further to fine more documents?
@@ -74,8 +76,8 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
         tuned2_question_str: str = await rewrite_question_for_keywordsearch_retrieval(question)
 
         # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(tuned2_question_str, k=((1+max_results)//2) )
-        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 2x tuned question (Rewrite question for keywordsearch retrieval)")
+        further_retrieved_docs = await find_documents(tuned2_question_str, k=((1+max_results)//2), alpha=0.0)
+        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 2nd tuned question (Rewrite question for keywordsearch retrieval)")
         retrieved_docs.extend(further_retrieved_docs)
 
     # Do I need to filter the documents?
@@ -103,7 +105,7 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
     len_before = len(retrieved_docs)
     retrieved_docs = remove_duplicates_from_documents(retrieved_docs)
     len_after = len(retrieved_docs)
-    logger.info(f"Removed duplicates from {len_before} -> {len_after} retrieved docs")
+    log_docs(logger, logging.INFO, f"Removed duplicates from {len_before} -> {len_after} retrieved docs", retrieved_docs)
 
     # Do I need to score and to filter the documents?
     if enable_result_filtering:
@@ -117,12 +119,14 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
  
         len_after = len(retrieved_docs)
         logger.info(f"Filtered (and sorted): from {len_before} -> {len_after} retrieved docs")
+        log_docs(logger, logging.INFO, "Filtered (and sorted)", retrieved_docs)
 
     # Merge documents form the same source / same URL (except anker)
     len_before = len(retrieved_docs)
     retrieved_docs = await merge_documents_per_plob_id(retrieved_docs)
     len_after = len(retrieved_docs)
     logger.info(f"Merged from {len_before} -> {len_after} retrieved docs")
+    log_docs(logger, logging.INFO, "Merged", retrieved_docs)
 
     # Filter and sort result documents again
     if enable_result_filtering:
@@ -138,9 +142,7 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
         retrieved_docs = retrieved_docs[:max_results]
 
     # Result
-    logger.info(f"Found {str(len(retrieved_docs))} relevant docs after all processing steps")
-    for doc in retrieved_docs:
-        logger.debug(f"Found doc={doc.metadata} content='{str_limit(doc.page_content, 1000)}'")
+    log_docs(logger, logging.INFO, "Final retrieved docs", retrieved_docs)
 
     return retrieved_docs
 
@@ -159,16 +161,24 @@ def remove_duplicates_from_documents(documents: List[Document]) -> List[Document
     Returns:
         List[Document]: List of documents with duplicates removed.
     """
-    seen_doc_sha256 = set()
+    seen_sha256 = set()
     unique_documents = []
     for doc in documents:
-        doc_sha256 = doc.metadata.get('sha256', None)  # Use a unique identifier from metadata
-        if doc_sha256 == None:
-            logger.warning(f"Document {doc.metadata.get('title', 'No title')} of plob_id={doc.metadata.get('plob_id', None)} has no sha256 metadata, skipping duplicate check.")
-            continue
-        if doc_sha256 not in seen_doc_sha256:
-            seen_doc_sha256.add(doc_sha256)
+        # Use the doc.page_content as a unique identifier
+        # (doc.metadata.get('sha256', None) is not always matching  because of page_content tuning))
+
+        # Preparation
+        page_content = doc.page_content
+        if page_content is None:
+            continue  # Skip documents with no content
+        
+        # Calculate and compare the SHA256 hash of the page content
+        page_content_sha256 = sha256sum_str(page_content)
+        if page_content_sha256 not in seen_sha256:
+            seen_sha256.add(page_content_sha256)
             unique_documents.append(doc)
+        else:
+            logger.debug(f"Duplicate document found: {doc2str(doc)}")
 
     return unique_documents
 
@@ -419,8 +429,9 @@ def group_documents_by_plob_id(documents: List[Document]) -> Dict[str, List[Docu
 async def find_documents(
     question: str,
     alternative_str_for_embedding: str | None = None,
-    k: int = 5
-    ) -> List[Document]:
+    k: int = 5,
+    alpha: float = 0.75
+) -> List[Document]:
     """Get relevant documents for a given question.
     
     
@@ -430,28 +441,46 @@ async def find_documents(
                                                     the question. This can be useful if you want to use a
                                                     different string for the embedding process.
         k: Number of Documents to return. Defaults to 5.
+        alpha (float): The alpha parameter for the similarity search. It controls the balance between
+                       keyword search and vector search. Defaults to 0.75.
+                       alpha = 0 forces using a pure keyword search method (BM25)
+                       alpha = 1 forces using a pure vector search method
+
     """
 
     # Retrive documents
     vectorStore = get_vectorstore()
     str_for_embedding = alternative_str_for_embedding if alternative_str_for_embedding else question
-    docs = vectorStore.similarity_search(str_for_embedding, k)
- 
-    logger.debug(f"Found {str(len(docs))} docs in vectorstore (un-graded candidates) for question: '{question}'")
-    for doc in docs:
-        logger.debug(f"Found doc={doc.metadata} content='{str_limit(doc.page_content, 1000)}'")
 
+    # similarity_search() uses Weaviate's hybrid search.
+    #   https://python.langchain.com/docs/integrations/vectorstores/weaviate/#search-mechanism
+    #   https://docs.weaviate.io/weaviate/api/graphql/search-operators#hybrid
+    #
+    # The alpha parameter controls the balance between keyword search and vector search.
+    # alpha can be any number from 0 to 1, defaulting to 0.75.
+    #    alpha = 0 forces using a pure keyword search method (BM25)
+    #    alpha = 1 forces using a pure vector search method
+    #    alpha = 0.5 weighs the BM25 and vector methods evenly
+    docs = vectorStore.similarity_search(str_for_embedding, k=k, alpha=0.75)
+ 
     # Content from metadata - if index data and search results are not the same
-    consider_page_content_metadata = True
-    if consider_page_content_metadata:
+    consider_metadata_page_content = True
+    if consider_metadata_page_content:
+        # Yes, deliver extended content
+        updated_docs: List[Document] = []        
         for doc in docs:
-            if "page_content" in doc.metadata:
-                # Use the page_content from metadata if it exists
-                if doc.page_content != doc.metadata["page_content"]:
-                    logger.info(f"Use page_content from metadata for doc.sha256={doc.metadata.get('sha256', None)}")
-                    doc.page_content = doc.metadata["page_content"]
-                else:
-                    logger.info(f"Use page_content from document for doc.sha256={doc.metadata.get('sha256', None)}")
+            metadata_page_content = doc.metadata.get('page_content', None)
+            if metadata_page_content:
+                # metadata_page_content exists, use it
+                logger.debug(f"  Use metadata_page_content for: {doc2str(doc)}")
+                updated_doc = doc.model_copy(deep=True)
+                updated_doc.page_content = metadata_page_content
+                updated_docs.append(updated_doc)
+            else:
+                # No metadata_page_content, use the original document
+                #logger.debug(f" Don't use metadata_page_content (because it doesn't exist) for: {doc2str(doc)}")
+                updated_docs.append(doc)
+        docs = updated_docs
 
     # Extended content?
     if deliver_extended_content:
@@ -461,13 +490,13 @@ async def find_documents(
             extended_page_content = doc.metadata.get("extended_page_content", None)
             if extended_page_content:
                 # Extended content exists, use it
-                logger.debug(f"Use extended_page_content for doc.sha256={doc.metadata.get('sha256', None)}")
+                logger.debug(f"  Use extended_page_content for: {doc2str(doc)}")
                 updated_doc = doc.model_copy(deep=True)
                 updated_doc.page_content = extended_page_content
                 updated_docs.append(updated_doc)
             else:
                 # No extended content, use the original document
-                logger.warning
+                #logger.debug(f" Don't use extended_page_content (because it doesn't exist) for: {doc2str(doc)}")
                 updated_docs.append(doc)
         docs = updated_docs
 

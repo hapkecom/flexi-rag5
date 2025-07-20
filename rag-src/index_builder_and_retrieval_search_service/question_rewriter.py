@@ -117,5 +117,5 @@ async def create_hypothetical_answer_for_hyde(question: str) -> str:
     hypothetical_answer = question_rewriter.invoke({"question": question})
 
     # Result
-    logger.info(f"Hypothetical_answer: '{question}' -> '{str_limit(hypothetical_answer, 1000)}'")
+    logger.info(f"Hypothetical_answer: '{question}' -> '{str_limit(hypothetical_answer, 80)}'")
     return hypothetical_answer

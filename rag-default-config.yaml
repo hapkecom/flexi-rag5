@@ -253,12 +253,13 @@ config:
   rag_indexing:
     enabled: true
     # summary with LLM:
-    
     # Calculate summaries for each document part (split) and index them?
     # setting include_summary_in_search_results=true requires include_summary_in_search_index=true
     include_summary_in_search_index: true
-    include_summary_in_search_results: true
+    include_summary_in_search_results: false
     document_summarizer_chat_llm: Chat_default_llm
+
+    log_all_data_in_sqldb_after_indexing: false
 
   rag_response:
     # select the LLMs used for the response generation

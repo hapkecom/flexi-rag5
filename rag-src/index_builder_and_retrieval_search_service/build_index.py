@@ -40,6 +40,10 @@ from common.utils.string_util import str_limit
 
 logger = logging.getLogger(__name__)
 
+rag_indexing_enabled = deep_get(settings, "config.rag_indexing.enabled", default_value=False)
+log_all_data_in_sqldb_after_indexing = deep_get(settings, "config.rag_indexing.log_all_data_in_sqldb_after_indexing", default_value=False)
+
+
 #sqlCon: DBAPIConnection | None = None
 sqlCon = None
 vectorStore: Optional[VectorStore] = None
@@ -83,7 +87,11 @@ def indexing_endless_loop_worker():
         # action
         if test_all_llm_and_embedding_llm_connections():
             logger.info("===== All LLM and embedding connections are working. Starting indexing run ...")
-            indexing_single_run()
+
+            if rag_indexing_enabled:
+                indexing_single_run()
+            else:
+                logger.warning("===== rag_indexing.enabled=False. Skipping indexing run ...")
         else:
             logger.error("===== One or more LLM or embedding connections are not working. Skipping indexing run ...")
 
@@ -169,8 +177,9 @@ def indexing_single_run():
         logger.info(f"===== ")
         logger.info(f"===== ")
         logger.info(f"===== ")
-        
-        print_all_from_sqldb()
+
+        if log_all_data_in_sqldb_after_indexing:
+            print_all_from_sqldb()
         print_vectorstore_stats()
         #vectorStore = get_vectorstore()
         #logger.info(f"vectorStore = {vectorStore}")

@@ -20,7 +20,7 @@ Start DBs + RAG app on local Docker
 
 Rebuild and Restart on local Docker
 
-    clear; ./rag-build-image.sh && ./all-rag-restart.sh
+    clear; sudo date && ./rag-build-image.sh && ./all-rag-restart.sh
 
 
 Cleanup local Docker Volumes

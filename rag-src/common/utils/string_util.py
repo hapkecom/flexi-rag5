@@ -13,6 +13,22 @@ logger = logging.getLogger(__name__)
 def str_limit(s: any, max_len: int = 40) -> str:
     if s is None:
         return None
+    s0 = str(s)
+
+    # remove newlines
+    s1 = s0.replace('\n', ' ').replace('\r', ' ')
+
+    # remove multiple spaces
+    s1 = ' '.join(s1.split())
+
+    # limit the len
+    s = s1 if len(s1) <= max_len else (s1.strip()[:max_len] + (('...['+str(len(s0))+']') if len(s1) > max_len else ''))
+
+    return s
+
+def str_limit_hard_cut(s: any, max_len: int = 40) -> str:
+    if s is None:
+        return None
     s = str(s)
 
     # remove newlines
@@ -22,9 +38,10 @@ def str_limit(s: any, max_len: int = 40) -> str:
     s = ' '.join(s.split())
 
     # limit the len
-    s = s if len(s) <= max_len else (s.strip()[:max_len] + (('...['+str(len(s))+']') if len(s) > max_len else ''))
+    s = s if len(s) <= max_len else (s.strip()[:max_len])
     
     return s
+
 
 
 

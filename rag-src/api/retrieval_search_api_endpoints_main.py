@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from index_builder_and_retrieval_search_service.search_index import search
 from langchain_core.documents import Document
+from common.service.logging_tools import doc2str
 
 import logging
 from fastapi import APIRouter, HTTPException
@@ -43,7 +44,9 @@ async def search_endpoint(
     Search endpoint implementing the SearxNG API protocol.
     """
 
-    logger.info(f"API Received query: {q}")
+    logger.info( "=====")
+    logger.info( "=====")
+    logger.info(f"===== API Received query: {q}")
 
     search_results = []
 
@@ -61,7 +64,7 @@ async def search_endpoint(
         if content_docs:
             logger.info(f"API Response: found {len(content_docs)} documents for query '{q}':")
             for idx, doc in enumerate(content_docs):
-                logger.info(f"Document {idx+1}: {str_limit(str(doc), 10000)}")
+                logger.info(f"    #{idx+1}: {doc2str(doc)} - page_content: {str_limit(doc.page_content, 10000)}")
         else:
             logger.info(f"API Response: no contents (documents) found for query '{q}'")
 
@@ -91,8 +94,9 @@ async def search_endpoint(
         }
     )
 
-    logger.debug("-------------------")
-    logger.debug(f"SearxNG Response - {len(search_results)} results: {str_limit(str(searxng_response), 100)}")
-    logger.debug("-------------------")
+    logger.debug( "=====")
+    logger.debug(f"===== SearxNG Response - {len(search_results)} results: {str_limit(str(searxng_response), 100)}")
+    logger.info(  "=====")
+    logger.info(  "=====")
 
     return searxng_response
