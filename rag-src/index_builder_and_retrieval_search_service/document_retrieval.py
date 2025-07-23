@@ -24,11 +24,14 @@ import common.service.config as config
 from common.utils.hash_util import sha256sum_str
 from common.utils.string_util import str_limit, merge_strings_with_with_overlap_detection_and_tail_recursion, merge_two_strings_with_with_overlap_detection
 from common.service.logging_tools import log_docs, doc2str
+from model.plob_document import PlobDocument
+from model.plob_documents import PlobDocuments
 
 logger = logging.getLogger(__name__)
 
 
-enable_result_filtering = True
+enable_intermediate_result_filtering_with_llm = deep_get(settings, "config.rag_response.intermediate_result_filtering_with_llm", default_value=True)
+enable_final_result_filtering_with_llm = deep_get(settings, "config.rag_response.final_result_filtering_with_llm", default_value=False)
 enable_rewrite_question_for_vectorsearch_retrieval = deep_get(settings, "config.rag_response.rewrite_question_for_vectorsearch_retrieval", default_value=False)
 enable_rewrite_question_for_keywordsearch_retrieval = deep_get(settings, "config.rag_response.rewrite_question_for_keywordsearch_retrieval", default_value=False)
 enable_hyde_for_vectorsearch_retrieval = deep_get(settings, "config.rag_response.hyde_for_vectorsearch_retrieval", default_value=False)
@@ -41,46 +44,23 @@ enable_rewrite_complete_response = deep_get(settings, "config.rag_response.rewri
 
 
 @alru_cache(ttl=config.responseCacheTtlSeconds, maxsize=config.maxCachedQuestions)
-async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> List[Document]:
+async def find_relevant_documents_tuned(question: str, max_results: Optional[int]) -> List[Document]:
     """Get relevant documents for a given question.
        Enrich with a tuned question
     """
 
     # Parameters
+    default_max_results = 10
     max_max_result = 10
+    if max_results is None or max_results <= 0:
+        max_results = default_max_results
     max_results = min(max_results, max_max_result)
 
     # Get the relevant documents
     retrieved_docs: List[Document] = await find_documents(question, k=2*max_results)
-    logger.info(f"Found {str(len(retrieved_docs))} docs without tuned question")
+    logger.info(f"Found {str(len(retrieved_docs))} docs with original question")
 
-    # Do I need to enrich further to fine more documents?
-    if enable_rewrite_question_for_vectorsearch_retrieval: # and (retrieved_docs is None or len(retrieved_docs) == 0):
-        # Yes
-        logger.debug("Rewrite question for vectorsearch retrieval")
-
-        # Improve the question for vectorsearch retrieval
-        tuned_question_str: str = await rewrite_question_for_vectorsearch_retrieval(question)
-
-        # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(tuned_question_str, k=max_results, alpha=1.0)
-        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 1st tuned question (Rewrite question for vectorsearch retrieval)")
-        retrieved_docs.extend(further_retrieved_docs)
-
-    # Do I need to enrich further to fine more documents?
-    if enable_rewrite_question_for_keywordsearch_retrieval: # and (retrieved_docs is None or len(retrieved_docs) == 0):
-        # Yes
-        logger.debug("Rewrite question for keywordsearch retrieval")
-
-        # Improve the question for keywordsearch retrieval
-        tuned2_question_str: str = await rewrite_question_for_keywordsearch_retrieval(question)
-
-        # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(tuned2_question_str, k=((1+max_results)//2), alpha=0.0)
-        logger.info(f"Found {str(len(further_retrieved_docs))} docs with 2nd tuned question (Rewrite question for keywordsearch retrieval)")
-        retrieved_docs.extend(further_retrieved_docs)
-
-    # Do I need to filter the documents?
+    # Enrich further to fine more documents - with HyDE (Hypothetical Document Embeddings)?
     if enable_hyde_for_vectorsearch_retrieval:
         # Yes - use HyDE (Hypothetical Document Embeddings):
         #
@@ -88,15 +68,56 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
         # calculate its embedding, and use it to find more relevant documents
         # - https://bdtechtalks.com/2024/10/06/advanced-rag-retrieval/
         # - https://mikulskibartosz.name/advanced-rag-techniques-explained
-        logger.debug("Use HyDE (Hypothetical Document Embeddings)")
+        try:
+            logger.info("Use HyDE (Hypothetical Document Embeddings) now ...")
 
-        # Improve the question for keywordsearch retrieval
-        hypothetical_answer: str = await create_hypothetical_answer_for_hyde(question)
+            # Improve the question for keywordsearch retrieval
+            hypothetical_answer: str = await create_hypothetical_answer_for_hyde(question)
 
-        # Get the relevant documents (again)
-        further_retrieved_docs = await find_documents(question, hypothetical_answer, k=max_results)
-        logger.info(f"Found {str(len(further_retrieved_docs))} further docs with HyDE (Hypothetical Document Embeddings)")
-        retrieved_docs.extend(further_retrieved_docs)
+            # Get the relevant documents (again)
+            further_retrieved_docs = await find_documents(question, hypothetical_answer, k=max_results)
+            logger.info(f"Found {str(len(further_retrieved_docs))} further docs with HyDE (Hypothetical Document Embeddings)")
+            retrieved_docs.extend(further_retrieved_docs)
+        except Exception as e:
+            # Probably LLM request failed,
+            # no re-try because of performance reasons
+            logger.warning(f"Error while using HyDE (Hypothetical Document Embeddings): {e}")
+
+    # Enrich further to fine more documents - rewrite question for vectorsearch retrieval?
+    if enable_rewrite_question_for_vectorsearch_retrieval: # and (retrieved_docs is None or len(retrieved_docs) == 0):
+        # Yes
+        try:
+            logger.info("Rewrite question for vectorsearch retrieval now ...")
+
+            # Improve the question for vectorsearch retrieval
+            tuned_question_str: str = await rewrite_question_for_vectorsearch_retrieval(question)
+
+            # Get the relevant documents (again)
+            further_retrieved_docs = await find_documents(tuned_question_str, k=max_results, alpha=1.0)
+            logger.info(f"Found {str(len(further_retrieved_docs))} docs with 1st tuned question (Rewrite question for vectorsearch retrieval)")
+            retrieved_docs.extend(further_retrieved_docs)
+        except Exception as e:
+            # Probably LLM request failed,
+            # no re-try because of performance reasons
+            logger.warning(f"Error while rewriting question for vectorsearch retrieval: {e}")
+
+    # Enrich further to fine more documents - rewrite question for keywordsearch retrieval?
+    if enable_rewrite_question_for_keywordsearch_retrieval: # and (retrieved_docs is None or len(retrieved_docs) == 0):
+        # Yes
+        try:
+            logger.info("Rewrite question for keywordsearch retrieval now ...")
+
+            # Improve the question for keywordsearch retrieval
+            tuned2_question_str: str = await rewrite_question_for_keywordsearch_retrieval(question)
+
+            # Get the relevant documents (again)
+            further_retrieved_docs = await find_documents(tuned2_question_str, k=((1+max_results)//2), alpha=0.0)
+            logger.info(f"Found {str(len(further_retrieved_docs))} docs with 2nd tuned question (Rewrite question for keywordsearch retrieval)")
+            retrieved_docs.extend(further_retrieved_docs)
+        except Exception as e:
+            # Probably LLM request failed,
+            # no re-try because of performance reasons
+            logger.warning(f"Error while rewriting question for keywordsearch retrieval: {e}")
 
     # Un-lazy
     retrieved_docs = list(retrieved_docs)
@@ -105,37 +126,72 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
     len_before = len(retrieved_docs)
     retrieved_docs = remove_duplicates_from_documents(retrieved_docs)
     len_after = len(retrieved_docs)
-    log_docs(logger, logging.INFO, f"Removed duplicates from {len_before} -> {len_after} retrieved docs", retrieved_docs)
+    msg = f"Removed duplicates from {len_before} -> {len_after} retrieved docs"
+    log_docs(logger, logging.INFO, msg, retrieved_docs)
 
-    # Do I need to score and to filter the documents?
-    if enable_result_filtering:
-        # Yes
+    # Sort and filter the documents?
+    docs_sources_sorted_by_relevance_score: List[str] = []
+    if enable_intermediate_result_filtering_with_llm:
+        # Yes: Sort and filter the documents with LLM (intermediate)
+        logger.info("Filter and sort with LLM (intermediate) documents by numeric relevance score for question now ...")
         len_before = len(retrieved_docs)
-        retrieved_docs = await filter_and_sort_documents_by_numeric_relevance_score_for_question(
-            question, retrieved_docs)
+        try:
+            retrieved_docs = await filter_and_sort_documents_by_numeric_relevance_score_for_question(
+                question, retrieved_docs)
 
-        # Un-lazy
-        retrieved_docs = list(retrieved_docs)
- 
+            # Un-lazy
+            retrieved_docs = list(retrieved_docs)
+    
+            len_after = len(retrieved_docs)
+            msg = f"Filtered and sorted with LLM (intermediate): from {len_before} -> {len_after} retrieved docs"
+            log_docs(logger, logging.INFO, msg, retrieved_docs)
+        except Exception as e:
+            # Probably LLM request(s) failed,
+            # no re-try because of performance reasons
+            len_after = len(retrieved_docs)
+            logger.warning(f"Error while filtering and sorting documents by numeric relevance score - continue with {len_before} of {len_after} retrieved docs: {e}")
+    else:
+        # No: Skip filtering and sorting with LLM (intermediate),
+        # keep the original retrieval order
         len_after = len(retrieved_docs)
-        logger.info(f"Filtered (and sorted): from {len_before} -> {len_after} retrieved docs")
-        log_docs(logger, logging.INFO, "Filtered (and sorted)", retrieved_docs)
+        msg = f"Skipped filtering and sorting with LLM because of configuration (intermediate_result_filtering_with_llm=False), continue with all {len_after} retrieved docs"
+        log_docs(logger, logging.INFO, msg, retrieved_docs)
+    # Collect sources sorted by relevance score (for later re-use)
+    for doc in retrieved_docs:
+        source = doc.metadata.get('source', None)
+        if source is not None and source not in docs_sources_sorted_by_relevance_score:
+            docs_sources_sorted_by_relevance_score.append(source)
 
     # Merge documents form the same source / same URL (except anker)
     len_before = len(retrieved_docs)
     retrieved_docs = await merge_documents_per_plob_id(retrieved_docs)
     len_after = len(retrieved_docs)
-    logger.info(f"Merged from {len_before} -> {len_after} retrieved docs")
-    log_docs(logger, logging.INFO, "Merged", retrieved_docs)
+    msg = f"Merged from {len_before} -> {len_after} retrieved docs"
+    log_docs(logger, logging.INFO, msg, retrieved_docs)
 
     # Filter and sort result documents again
-    if enable_result_filtering:
-        # Yes
-        retrieved_docs = await filter_and_sort_documents_by_numeric_relevance_score_for_question(
-            question, retrieved_docs)
+    if enable_final_result_filtering_with_llm:
+        # Yes: Filter and sort the documents with LLM (final)
+        logger.info("Final result filtering and sorting with LLM now ...")
+        try:
+            retrieved_docs = await filter_and_sort_documents_by_numeric_relevance_score_for_question(
+                question, retrieved_docs)
+        except Exception as e:
+            # Probably LLM request(s) failed,
+            # no re-try because of performance reasons
+            logger.warning(f"Error while filtering and sorting final documents by numeric relevance score - continue with {len(retrieved_docs)} retrieved docs: {e}")
 
         # Un-lazy
         retrieved_docs = list(retrieved_docs)
+    else:
+        # No: Skip filtering and sorting with LLM (final)
+        if len(docs_sources_sorted_by_relevance_score) > 0:
+            # Sort by relevance score stored in docs_sources_sorted_by_relevance_score
+            logger.info("Final result sorting by earlier calculated relevance score without LLM because of configuration (final_result_filtering_with_llm=False)")
+            retrieved_docs = sorted(retrieved_docs, key=lambda doc: docs_sources_sorted_by_relevance_score.index(doc.metadata.get('source', '')), reverse=False)
+        else:
+            # No previous relevance score, sort by source
+            logger.info("No final result filtering and sorting at all: neither with LLM (final_result_filtering_with_llm=False) nor by earlier calculated relevance score (non-existing)")
 
     # Final results limit enforcement
     if max_results > 0:
@@ -154,6 +210,8 @@ async def find_relevant_documents_tuned(question: str, max_results: int = 5) -> 
 def remove_duplicates_from_documents(documents: List[Document]) -> List[Document]:
     """
     Remove duplicate documents based on their metadata and content.
+
+    Keep the original order of the documents based on the first occurrence of each unique document.
     
     Args:
         documents (List[Document]): List of documents to filter.
@@ -186,6 +244,9 @@ def remove_duplicates_from_documents(documents: List[Document]) -> List[Document
 async def merge_documents_per_plob_id(documents: List[Document]) -> List[Document]:
     """
     Merge documents per plob_id into a single document.
+
+    Try to keep the order of the documents as much as possible,
+    based on the first document of each plob_id.
     
     Args:
         documents (List[Document]): List of documents to merge.
@@ -194,10 +255,10 @@ async def merge_documents_per_plob_id(documents: List[Document]) -> List[Documen
         List[Document]: List of merged documents, one per plob_id.
     """
     merged_documents = await _merge_documents_per_plob_id(documents)
-    return list(merged_documents.values())  # Convert dict values to list
+    return [doc.document for doc in merged_documents if doc.document is not None]
 
 
-async def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, Document]:
+async def _merge_documents_per_plob_id(documents: List[Document]) -> List[PlobDocuments]:
     """
     Merge documents per plob_id into a single document.
     
@@ -205,16 +266,17 @@ async def _merge_documents_per_plob_id(documents: List[Document]) -> Dict[str, D
         documents (List[Document]): List of documents to merge.
     
     Returns:
-        Dict[str, Document]: Dictionary with plob_id as keys and merged Document as values.
+        List[PlobDocument]: List of merged documents, one per plob_id.
     """
-    documents_by_plob_id: Dict[str, List[Document]] = group_documents_by_plob_id(documents)
-    merged_documents: Dict[str, Document] = {}
-    for plob_id, docs in documents_by_plob_id.items():
-        merged_doc = await merge_some_documents_of_a_plob_to_single_document(docs)
+    documents_by_plob_id: List[PlobDocuments] = _group_documents_by_plob_id(documents)
+    merged_documents: List[PlobDocument] = []
+    for plob_docs in documents_by_plob_id:
+        merged_doc = await merge_some_documents_of_a_plob_to_single_document(plob_docs.documents)
+        plob_id = plob_docs.plob_id
         if merged_doc:
-            merged_documents[plob_id] = merged_doc
+            merged_documents.append(PlobDocument(plob_id=plob_docs.plob_id, document=merged_doc))
         else:
-            logger.warning(f"No documents to merge for plob_id={plob_id}")
+            logger.warning(f"No documents to merge for plob_id={plob_id} - continue with next plob_id")
     return merged_documents
 
 
@@ -229,7 +291,11 @@ async def merge_some_documents_of_a_plob_to_single_document(documents: List[Docu
         Document | None: A single merged document or None if the list is empty.
     """
     if not documents:
+        # No documents to merge
         return None
+    if len(documents) == 1:
+        # Only one document, return it as is
+        return documents[0]
 
     # Sort first by part
     documents = _sort_documents_of_a_plob_by_part(documents)
@@ -238,7 +304,7 @@ async def merge_some_documents_of_a_plob_to_single_document(documents: List[Docu
     # Separate documents with summaries from those without
     documents_with_summary    = [doc for doc in documents if "/summary" in     doc.metadata.get('part', '')]
     documents_without_summary = [doc for doc in documents if "/summary" not in doc.metadata.get('part', '')]
-    logger.info(f"Documents to merge: {len(documents_without_summary)} documents without summary, {len(documents_with_summary)} documents with summary")
+    logger.debug(f"Documents to merge: {len(documents_without_summary)} documents without summary, {len(documents_with_summary)} documents with summary")
 
     # Merge the page contents of documents without summary
     without_summary_contents = [doc.page_content for doc in documents_without_summary if doc.page_content]
@@ -274,7 +340,7 @@ async def merge_some_documents_of_a_plob_to_single_document(documents: List[Docu
 
     # Merge the contents: without summary + with summary
     merged_content = ""
-    logger.info(f"enable_rewrite_complete_response={enable_rewrite_complete_response}, len(without_summary_merged_content)={len(without_summary_merged_content)}, len(with_summary_merged_content)={len(with_summary_merged_content)}")
+    logger.debug(f"enable_rewrite_complete_response={enable_rewrite_complete_response}, len(without_summary_merged_content)={len(without_summary_merged_content)}, len(with_summary_merged_content)={len(with_summary_merged_content)}")
     if not enable_rewrite_complete_response:
         # Simply merge the contents without rewriting
         if len(without_summary_merged_content) > 0 and len(with_summary_merged_content) > 0:
@@ -401,8 +467,7 @@ def _comparison_function_for_documents_by_part(doc1: Document, doc2: Document) -
     else:
         return 0
 
-
-def group_documents_by_plob_id(documents: List[Document]) -> Dict[str, List[Document]]:
+def _group_documents_by_plob_id(documents: List[Document]) -> List[PlobDocuments]:
     """
     Group documents by their plob_id.
     
@@ -410,16 +475,26 @@ def group_documents_by_plob_id(documents: List[Document]) -> Dict[str, List[Docu
         documents (List[Document]): List of documents to group.
     
     Returns:
-        Dict[str, List[Document]]: Dictionary with plob_id as keys and lists of documents as values.
+        List[PlobDocuments]: List of tuples, each containing a plob_id and the corresponding list of documents.
     """
-    grouped_documents = {}
+    results: List[PlobDocuments] = []
     for doc in documents:
         plob_id = doc.metadata.get('plob_id', None)
-        if plob_id not in grouped_documents:
-            grouped_documents[plob_id] = []
-        grouped_documents[plob_id].append(doc)
-    
-    return grouped_documents
+        # Looking for plob_id in results
+        found_blob_id = False
+        for plob_docs in results:
+            if plob_docs.plob_id == plob_id:
+                # Found the plob_id, append the document
+                plob_docs.documents.append(doc)
+                found_blob_id = True
+                break
+        if not found_blob_id:
+            # Create a new PlobDocuments instance if plob_id not found
+            new_plob_docs = PlobDocuments(plob_id=plob_id, documents=[doc])
+            results.append(new_plob_docs)
+
+    return results
+
 
 #
 # Pure search functions
@@ -461,7 +536,8 @@ async def find_documents(
     #    alpha = 0 forces using a pure keyword search method (BM25)
     #    alpha = 1 forces using a pure vector search method
     #    alpha = 0.5 weighs the BM25 and vector methods evenly
-    docs = vectorStore.similarity_search(str_for_embedding, k=k, alpha=0.75)
+    logger.info(f"Find documents for question: '{str_for_embedding}' (k={k}, alpha={alpha})")
+    docs = vectorStore.similarity_search(str_for_embedding, k=k, alpha=alpha)
  
     # Content from metadata - if index data and search results are not the same
     consider_metadata_page_content = True

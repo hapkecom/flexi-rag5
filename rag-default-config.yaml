@@ -251,7 +251,6 @@ config:
 
 
   rag_indexing:
-    enabled: true
     # summary with LLM:
     # Calculate summaries for each document part (split) and index them?
     # setting include_summary_in_search_results=true requires include_summary_in_search_index=true
@@ -297,6 +296,8 @@ config:
     #   enrich_all_user_messages_with_retrieved_documents: true
     enrich_all_user_messages_with_retrieved_documents: false
 
+    intermediate_result_filtering_with_llm: true
+    final_result_filtering_with_llm: false
 
   #embedding_and_indexing:
   #  enabled: true

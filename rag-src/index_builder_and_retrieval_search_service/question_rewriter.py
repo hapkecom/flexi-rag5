@@ -91,10 +91,10 @@ async def create_hypothetical_answer_for_hyde(question: str) -> str:
 
     # Prompt
     system = """You are an expert tech and biz writer tuned to produce standalone,
-                ~200 - 400 token excerpts For each user query, generate exactly one
+                ~100 - 200 token excerpts For each user query, generate exactly one
                 “hypothetical document” that:\n
                 - Uses a neutral, formal tone\n
-                - Targets ~300 tokens total (about 3-4 paragraphs)\n
+                - Targets ~150 tokens total (about 2-3 paragraphs)\n
                 - Contains no internal commentary or meta-instructions—only the finished excerpt\n
                 After these instructions, the model will receive a user prompt of the form:\n
                 \n

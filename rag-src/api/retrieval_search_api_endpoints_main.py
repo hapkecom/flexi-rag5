@@ -37,7 +37,7 @@ class SearxNGResponse(BaseModel):
 @router.get("/search", response_model=SearxNGResponse)
 async def search_endpoint(
     q: str = Query(..., description="Search query"),
-    max_results: int = Query(5, description="Maximum number of results to return"),
+    max_results: Optional[int] = Query(None, description="Maximum number of results to return"),
     engines: Optional[str] = Query(None, description="Search engines to use")
 ) -> SearxNGResponse:
     """
@@ -46,7 +46,7 @@ async def search_endpoint(
 
     logger.info( "=====")
     logger.info( "=====")
-    logger.info(f"===== API Received query: {q}")
+    logger.info(f"===== API Received query (max_results={max_results}): '{q}'")
 
     search_results = []
 

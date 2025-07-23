@@ -135,12 +135,16 @@ async def _filter_and_sort_documents_by_numeric_relevance_score_for_question(
     # Iterate over the documents
     # TODO: make this parallel/async with ainvoke
     scored_docs: List[RankedDocument] = []
-    for doc in documents:
+    for i, doc in enumerate(documents):
         doc_txt = doc.page_content
-        relevance_score = retrieval_grader.invoke({"question": question, "document": doc_txt})
-        logger.debug(f"relevance_core={relevance_score} for doc={str_limit(doc_txt, 1000)}")
-        if (relevance_score.numeric_score >= minimum_relevance_score):
-            scored_docs.append((relevance_score.numeric_score, doc))
+        try:
+            relevance_score = retrieval_grader.invoke({"question": question, "document": doc_txt})
+            logger.debug(f"relevance_core={relevance_score} for #{i+1} doc={str_limit(doc_txt, 1000)}")
+            if (relevance_score.numeric_score >= minimum_relevance_score):
+                scored_docs.append((relevance_score.numeric_score, doc))
+        except Exception as e:
+            logger.warning(f"Error grading #{i+1} doc={str_limit(doc_txt)} - use minimum relevance score as fallback: {e}")
+            scored_docs.append((minimum_relevance_score, doc))
 
     # Sort the documents by relevance score, most relevant first
     scored_docs.sort(key=lambda x: x[0], reverse=True)

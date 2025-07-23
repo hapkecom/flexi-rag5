@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import logging
 from typing import List
@@ -10,7 +10,7 @@ import common.service.config as config
 logger = logging.getLogger(__name__)
 
 
-async def search(question: str, max_results: int = 5) -> List[Document]:
+async def search(question: str, max_results: Optional[int]) -> List[Document]:
     """Get relevant documents for a given question.
        Enrich with a tuned question
     """
