@@ -24,6 +24,7 @@ from langchain_core.vectorstores import VectorStore
 from common.service.configloader import deep_get, settings
 from factory.llm_factory import test_all_llm_and_embedding_llm_connections
 from langchain_core.documents import Document
+from common.service.logging_tools import plob2str
 import logging
 
 from common.utils.hash_util import sha256sum_str
@@ -40,7 +41,7 @@ from common.utils.string_util import str_limit
 
 logger = logging.getLogger(__name__)
 
-rag_indexing_enabled = deep_get(settings, "config.rag_indexing.enabled", default_value=False)
+rag_loading_enabled = deep_get(settings, "config.rag_loading.enabled", default_value=False)
 log_all_data_in_sqldb_after_indexing = deep_get(settings, "config.rag_indexing.log_all_data_in_sqldb_after_indexing", default_value=False)
 
 
@@ -81,21 +82,22 @@ def indexing_endless_loop_worker():
     load_every_seconds = deep_get(settings, "config.rag_loading.load_every_seconds")
 
     while True:
-        # preparation
+        # Preparation
         starttime = time.time()
 
-        # action
+        # Almost action
         if test_all_llm_and_embedding_llm_connections():
             logger.info("===== All LLM and embedding connections are working. Starting indexing run ...")
 
-            if rag_indexing_enabled:
+            if rag_loading_enabled:
+                # Action
                 indexing_single_run()
             else:
-                logger.warning("===== rag_indexing.enabled=False. Skipping indexing run ...")
+                logger.warning("===== rag_loading.enabled=False. Skipping indexing run ...")
         else:
             logger.error("===== One or more LLM or embedding connections are not working. Skipping indexing run ...")
 
-        # finish this round
+        # Finish this round
         now = time.time()
         seconds_until_next_run = int(load_every_seconds - (now - starttime))
         if seconds_until_next_run > 0:
@@ -270,15 +272,36 @@ def process_all_plobs_from_queue_worker(index_build_id: str):
             # get next document from queue
             logger.info(f"Next doc from queue: Take it now (queue len={downloadedPlogsToProcessQueue.qsize()}) ... (blocking) ...")
             plob = downloadedPlogsToProcessQueue.get()
+            plob_str = plob2str(plob)
             if plob is None:
                 # end signal
                 logger.info("Next plob from queue: No more plobs/documents in queue (and no more will come)")
                 downloadedPlogsToProcessQueue.task_done()
                 break
             else:
-                # normal processing
-                logger.debug(f"Next plob with documents from queue: Got it")
-                process_single_plob_and_store_results_in_databases(index_build_id, plob)
+                # normal processing,
+                # Re-try up to 3 times to process the plob
+                logger.debug(f"Next plob with documents from queue: {plob_str} ...")
+                max_retries = 3
+                retry_count = 0
+                while retry_count < max_retries:
+                    try:
+                        retry_count += 1
+                        logger.info(f"Next plob with documents from queue: Processing plob (re/try {retry_count}) ... {plob_str}")
+                        process_single_plob_and_store_results_in_databases(index_build_id, plob)
+                        # Exit retry-loop because processing was successful
+                        break  
+                    except Exception as e:
+                        logger.warning(f"Error while processing plob: {e} (retry {retry_count}/{max_retries})", exc_info=True)
+                        if retry_count >= max_retries:
+                            logger.warning(f"Failed to process plob after {max_retries} retries: {plob_str} - continue with next plob")
+                            break  # Exit retry-loop and continue with next plob
+                        # Sleep before retrying
+                        seconds_before_next_retry = 5 ** retry_count
+                        logger.info(f"Sleeping for {seconds_before_next_retry} seconds before retrying ...")
+                        time.sleep(seconds_before_next_retry)
+
+                # Mark the plob as processed                 
                 downloadedPlogsToProcessQueue.task_done()
         except Exception as e:
             # Error while processing plob
@@ -307,17 +330,6 @@ def process_all_plobs_from_queue_worker(index_build_id: str):
 #
 # processing a single plob and its documents
 #
-def plob_str_limit(plob: Plob, limit: int = 80) -> str:
-    """
-    Limit the string representation of a plob to a certain length.
-    """
-    # replace long parts (in an object copy)
-    p = plob.pydantic_deep_copy()
-    file_hash_limit = 5
-    p.file_sha256 = str_limit(p.file_sha256, file_hash_limit)
-
-    plob_str = str(p)
-    return str_limit(plob_str, limit)
 
 def process_single_plob_and_store_results_in_databases(index_build_id: str, plob: Plob):
     """
@@ -327,7 +339,7 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
     NOT LAZY: The plob is processed and saved in the SQL DB and the vectorstore.
     """
 
-    plob_str = str_limit(f"plob({plob.id} - '{plob.url}')", 160)
+    plob_str = plob2str(plob) # str_limit(f"plob({plob.id} - '{plob.url}')", 160)
     logger.debug(f"==")
     logger.info (f"== {plob_str} ... START processing plob with media_type={plob.media_type} ...")
     logger.debug(f"==")

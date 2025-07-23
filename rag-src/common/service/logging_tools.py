@@ -12,6 +12,7 @@ from typing import (
 import shortuuid
 from langchain_core.documents import Document
 import logging
+import model.plob as Plob
 
 from common.utils.hash_util import sha256sum_str
 from common.utils.string_util import str_limit, str_limit_hard_cut
@@ -21,9 +22,48 @@ import queue
 #logger = logging.getLogger(__name__)
 
 
+#
+# Logging tools for Plobs
+#
+def plob2str(plob: Plob) -> str:
+    """Convert a Plob to a compact string representation."""
+
+    # Pre-check
+    if plob is None:
+        return "Plob=None"
+
+    # Prepare the string representation
+    id = plob.id
+    id_str = f"id={str_limit(id, 40)}" if id else "id=None"
+
+    sha256 = plob.file_sha256
+    sha256_str = f"sha256={str_limit_hard_cut(sha256, 8)}" if sha256 is not None else "sha256=None"
+
+    size = plob.file_size
+    size_str = f"size={str(int(size))}" if size is not None else "size=None"
+
+    url = plob.url
+    url_str = f"url={str_limit(url, 120)}" if url else "url=None"
+
+    media_type = plob.media_type
+    media_type_str = f"media_type={str_limit(media_type, 80)}" if media_type else "media_type=None"
+
+    # Return the string representation
+    return f"Plob: {id_str}, {sha256_str}, {size_str}, {media_type_str}, {url_str}"
+
+
+#
+# Logging tools for documents
+#
+
 def doc2str(doc: Document) -> str:
     """Convert a Document to a compact string representation."""
 
+    # Pre-check
+    if doc is None:
+        return "Document=None"
+
+    # Prepare the string representation
     sha256 = doc.metadata.get('sha256', None)
     sha256_str = f"sha256={str_limit_hard_cut(sha256, 8)}" if sha256 is not None else "sha256=None"
 
@@ -34,10 +74,11 @@ def doc2str(doc: Document) -> str:
     metadata_page_content_str = _doc_content2str(name='metadata_page_content', content=doc.metadata.get('page_content', None))
     extended_page_content_str = _doc_content2str(name='extended_page_content', content=doc.metadata.get('extended_page_content', None))
 
-    source_str = f"source={str_limit(doc.metadata.get('source', 'None'), 40)}"
-    part_str = f"part={doc.metadata.get('part', 'None')}"
-    title_str = f"title={str_limit(doc.metadata.get('title', 'None'), 40)}"
+    source_str = f"source={str_limit(doc.metadata.get('source', 'None'), 120)}"
+    part_str = f"part={str_limit(doc.metadata.get('part', 'None'), 80)}"
+    title_str = f"title={str_limit(doc.metadata.get('title', 'None'), 120)}"
 
+    # Return the string representation
     return f"Document: {sha256_str}, {source_str}, {part_str}, {page_content_str}, {metadata_page_content_str}, {extended_page_content_str}, {title_str}"
 
 def _doc_content2str(name: str = "content", content: Optional[str] = None) -> str:
