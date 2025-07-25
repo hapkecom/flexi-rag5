@@ -23,13 +23,14 @@ async def rewrite_question_for_vectorsearch_retrieval(question: str) -> str:
 
     # Prompt
     system = """You a question re-writer that converts an input question to a better version that is optimized \n 
-         for vectorstore retrieval. Look at the input and try to reason about the underlying semantic intent / meaning."""
+         for vectorstore retrieval. Look at the input and try to identify the underlying semantic intent / meaning. \n
+         Answer with just the improved question."""
     re_write_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system),
             (
                 "human",
-                "Here is the initial question: \n\n {question} \n Formulate an improved question.",
+                "Here is the initial question: \n\n {question} \n\n Formulate an improved question. Answer with just this **improved question**:\n\n",
             ),
         ]
     )
@@ -39,7 +40,7 @@ async def rewrite_question_for_vectorsearch_retrieval(question: str) -> str:
     updated_question = question_rewriter.invoke({"question": question})
 
     # Result
-    logger.info(f"Updated question: '{question}' -> '{str_limit(updated_question, 1000)}'")
+    logger.info(f"Updated question: '{question}' -> '{str_limit(updated_question, 150)}'")
     return updated_question
 
 
@@ -54,13 +55,14 @@ async def rewrite_question_for_keywordsearch_retrieval(question: str) -> str:
 
     # Prompt
     system = """You a question analyze that identifies the most relevant single keyword for optimal search. \n 
-         Look at the input and try to reason about the underlying semantic intent / meaning."""
+         Look at the input and try to identify the underlying semantic intent / meaning. \n
+         Answer with just this **single word**."""
     re_write_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system),
             (
                 "human",
-                "Here is the initial question: \n\n {question} \n Identifies the most relevant single keyword.",
+                "Here is the initial question: \n\n {question} \n\n Identifies the most relevant single keyword. Answer with just this **single word**:\n\n",
             ),
         ]
     )
@@ -70,7 +72,7 @@ async def rewrite_question_for_keywordsearch_retrieval(question: str) -> str:
     updated_question = question_rewriter.invoke({"question": question})
 
     # Result
-    logger.info(f"Updated question: '{question}' -> '{str_limit(updated_question, 1000)}'")
+    logger.info(f"Updated question: '{question}' -> '{str_limit(updated_question, 150)}'")
     return updated_question
 
 
@@ -95,19 +97,17 @@ async def create_hypothetical_answer_for_hyde(question: str) -> str:
                 “hypothetical document” that:\n
                 - Uses a neutral, formal tone\n
                 - Targets ~150 tokens total (about 2-3 paragraphs)\n
-                - Contains no internal commentary or meta-instructions—only the finished excerpt\n
+                - Contains no internal commentary or meta-instructions—only the *only* finished excerpt\n
                 After these instructions, the model will receive a user prompt of the form:\n
                 \n
-                Query: “<USER QUERY>”\n
-                Hypothetical Document:\n
-                \n
-                and should emit *only* the completed excerpt."""
+                Query: \n\n“<USER QUERY>”\n\n Respond with the Hypothetical Document of about 150 tokens:\n
+                """
     re_write_prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system),
             (
                 "human",
-                "Query: \n\n{question}\n\n Hypothetical Document:\n\n",
+                "Query: \n\n {question} \n\n Respond with the Hypothetical Document of about 150 tokens:\n\n",
             ),
         ]
     )
@@ -117,5 +117,5 @@ async def create_hypothetical_answer_for_hyde(question: str) -> str:
     hypothetical_answer = question_rewriter.invoke({"question": question})
 
     # Result
-    logger.info(f"Hypothetical_answer: '{question}' -> '{str_limit(hypothetical_answer, 80)}'")
+    logger.info(f"Hypothetical_answer: '{question}' -> '{str_limit(hypothetical_answer, 150)}'")
     return hypothetical_answer

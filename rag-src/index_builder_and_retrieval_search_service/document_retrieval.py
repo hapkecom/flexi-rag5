@@ -41,6 +41,8 @@ enable_rewrite_summaries = deep_get(settings, "config.rag_response.rewrite_summa
 enable_rewrite_complete_response = deep_get(settings, "config.rag_response.rewrite_complete_response", default_value=False)
 
 
+default_max_search_results = deep_get(settings, "config.rag_response.default_max_search_results", default_value=10)
+max_max_search_results = deep_get(settings, "config.rag_response.max_max_search_results", default_value=25)
 
 
 @alru_cache(ttl=config.responseCacheTtlSeconds, maxsize=config.maxCachedQuestions)
@@ -50,15 +52,17 @@ async def find_relevant_documents_tuned(question: str, max_results: Optional[int
     """
 
     # Parameters
-    default_max_results = 10
-    max_max_result = 10
     if max_results is None or max_results <= 0:
-        max_results = default_max_results
-    max_results = min(max_results, max_max_result)
+        max_results = default_max_search_results
+    max_results = min(max_results, max_max_search_results)
+
+    # Store result in list of list to later mix tge order
+    list_of_list_of_retrieved_docs: List[List[Document]] = []
 
     # Get the relevant documents
-    retrieved_docs: List[Document] = await find_documents(question, k=2*max_results)
-    logger.info(f"Found {str(len(retrieved_docs))} docs with original question")
+    normal_retrieved_docs: List[Document] = await find_documents(question, k=2*max_results)
+    logger.info(f"Found {str(len(normal_retrieved_docs))} docs with original question")
+    list_of_list_of_retrieved_docs.append(normal_retrieved_docs)
 
     # Enrich further to fine more documents - with HyDE (Hypothetical Document Embeddings)?
     if enable_hyde_for_vectorsearch_retrieval:
@@ -77,7 +81,7 @@ async def find_relevant_documents_tuned(question: str, max_results: Optional[int
             # Get the relevant documents (again)
             further_retrieved_docs = await find_documents(question, hypothetical_answer, k=max_results)
             logger.info(f"Found {str(len(further_retrieved_docs))} further docs with HyDE (Hypothetical Document Embeddings)")
-            retrieved_docs.extend(further_retrieved_docs)
+            list_of_list_of_retrieved_docs.append(further_retrieved_docs)
         except Exception as e:
             # Probably LLM request failed,
             # no re-try because of performance reasons
@@ -95,7 +99,7 @@ async def find_relevant_documents_tuned(question: str, max_results: Optional[int
             # Get the relevant documents (again)
             further_retrieved_docs = await find_documents(tuned_question_str, k=max_results, alpha=1.0)
             logger.info(f"Found {str(len(further_retrieved_docs))} docs with 1st tuned question (Rewrite question for vectorsearch retrieval)")
-            retrieved_docs.extend(further_retrieved_docs)
+            list_of_list_of_retrieved_docs.append(further_retrieved_docs)
         except Exception as e:
             # Probably LLM request failed,
             # no re-try because of performance reasons
@@ -113,14 +117,33 @@ async def find_relevant_documents_tuned(question: str, max_results: Optional[int
             # Get the relevant documents (again)
             further_retrieved_docs = await find_documents(tuned2_question_str, k=((1+max_results)//2), alpha=0.0)
             logger.info(f"Found {str(len(further_retrieved_docs))} docs with 2nd tuned question (Rewrite question for keywordsearch retrieval)")
-            retrieved_docs.extend(further_retrieved_docs)
+            list_of_list_of_retrieved_docs.append(further_retrieved_docs)
         except Exception as e:
             # Probably LLM request failed,
             # no re-try because of performance reasons
             logger.warning(f"Error while rewriting question for keywordsearch retrieval: {e}")
 
     # Un-lazy
-    retrieved_docs = list(retrieved_docs)
+    unlazy_list_of_list_of_retrieved_docs: List[List[Document]] = []
+    max_len = 0
+    num_of_docs = 0
+    for list_of_retrieved_docs in list_of_list_of_retrieved_docs:
+        unlazy_list_of_list_of_retrieved_docs.append(list(list_of_retrieved_docs))
+        l = len(list_of_retrieved_docs)
+        num_of_docs += l
+        if l > max_len:
+            max_len = l
+    # Remix docs (to ensure a good order without sorting)
+    retrieved_docs: List[Document] = []
+    logger.info(f"Remix docs ({len(unlazy_list_of_list_of_retrieved_docs)} lists with max_len={max_len} and {num_of_docs} docs in total)")
+    for i in range(max_len):
+        #logger.debug(f"    Remix i={i}/{max_len} lists")
+        for list_of_retrieved_docs in unlazy_list_of_list_of_retrieved_docs:
+            #logger.debug(f"        Remix docs: with list of {len(list_of_retrieved_docs)} docs")
+            if i < len(list_of_retrieved_docs):
+                # Add the document to the result
+                #logger.debug(f"            Added doc {doc2str(list_of_retrieved_docs[i])}")
+                retrieved_docs.append(list_of_retrieved_docs[i])
 
     # Remove duplicates
     len_before = len(retrieved_docs)
@@ -536,7 +559,7 @@ async def find_documents(
     #    alpha = 0 forces using a pure keyword search method (BM25)
     #    alpha = 1 forces using a pure vector search method
     #    alpha = 0.5 weighs the BM25 and vector methods evenly
-    logger.info(f"Find documents for question: '{str_for_embedding}' (k={k}, alpha={alpha})")
+    logger.info(f"Find documents for question: '{str_limit(str_for_embedding, 150)}' (k={k}, alpha={alpha})")
     docs = vectorStore.similarity_search(str_for_embedding, k=k, alpha=alpha)
  
     # Content from metadata - if index data and search results are not the same

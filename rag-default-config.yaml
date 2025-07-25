@@ -261,6 +261,10 @@ config:
     log_all_data_in_sqldb_after_indexing: false
 
   rag_response:
+    # Search result limits
+    default_max_search_results: 15
+    max_max_search_results: 50
+
     # select the LLMs used for the response generation
     default_chat_llm: Chat_default_llm
     default_chat_llm_with_streaming: Chat_default_llm
