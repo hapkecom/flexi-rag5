@@ -351,7 +351,7 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
         return
     # One or multiple documents available
     documents = _enrich_plob_documents(index_build_id, plob, documents)
-    splited_documents = []
+    splited_documents: List[Document] = []
     for doc in documents:
         # split document into parts
         try:
@@ -360,13 +360,14 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
             splited_documents.extend(doc_splits)
         except Exception as e:
             logger.warning(f"{plob_str} ... Error while splitting document: {e}")
-            continue
+            # forward the exception to reable re-try by the caller
+            raise e
 
     # Enrich documents with metadata
-    doc_splits = _enrich_plob_documents(index_build_id, plob, doc_splits)
-    doc_splits = list(doc_splits)  # convert to list to allow multiple iterations
-    logger.info(f"{plob_str} with {len(doc_splits)} documents / parts extracted")
-    for doc in doc_splits:
+    splited_documents = _enrich_plob_documents(index_build_id, plob, splited_documents)
+    splited_documents = list(splited_documents)  # convert to list to allow multiple iterations
+    logger.info(f"{plob_str} with {len(splited_documents)} documents / parts extracted")
+    for doc in splited_documents:
         m = doc.metadata
         if logger.isEnabledFor(logging.DEBUG):
             # Only log metadata if debug logging is enabled
@@ -374,10 +375,10 @@ def process_single_plob_and_store_results_in_databases(index_build_id: str, plob
             logger.debug(f"  document: {doc_metadata_str} document.page_content='{str_limit(doc.page_content)}'")
 
     # Save plob in SQL DB and in vectorstore
-    logger.info(f"== {plob_str} ... Save plob and its {len(doc_splits)} documents / parts in SQL DB and vectorstore ...")
-    save_single_plob_and_its_documents_in_databases(plob, doc_splits)
+    logger.info(f"== {plob_str} ... Save plob and its {len(splited_documents)} documents / parts in SQL DB and vectorstore ...")
+    save_single_plob_and_its_documents_in_databases(plob, splited_documents)
 
-    logger.info(f"== {plob_str} ... DONE processing plob: {len(doc_splits)} documents / parts stored in SQL DB and vectorstore")
+    logger.info(f"== {plob_str} ... DONE processing plob: {len(splited_documents)} documents / parts stored in SQL DB and vectorstore")
 
 
 

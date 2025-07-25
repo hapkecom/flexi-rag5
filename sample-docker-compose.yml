@@ -60,10 +60,17 @@ services:
     environment:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
-      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       ENABLE_API_BASED_MODULES: 'true'
       #DEFAULT_VECTORIZER_MODULE: 'none'
       CLUSTER_HOSTNAME: 'node1'
+
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      # control disk usage warnings and actions like:
+      # "Set READONLY, disk usage currently at 90.16%, threshold set to 90.00%"
+      # Details: https://docs.weaviate.io/deploy/configuration/persistence#disk-pressure-warnings-and-limits
+      #DISK_USE_WARNING_PERCENTAGE: 80    # default
+      #DISK_USE_READONLY_PERCENTAGE: 90    # default
+
     #networks:
     #  - rag-network
 
