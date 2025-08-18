@@ -1,0 +1,151 @@
+---
+version: '3'    # the version attribute is deprecated but required by older docker-compose versions
+services:
+  rag-app:
+    image: aisbreaker/rag-app:latest
+    container_name: rag-app
+    #build:
+    #  context: .
+    #  dockerfile: rag.Dockerfile
+    environment:
+      #- OPENAI_API_KEY=sk-...   # setting key in rag-config.yaml is preferred
+      # overwrite rag-(default-)config.yaml
+      #- RAG_config__common__databases__vectorstore__weaviate_host=weaviate
+      #- RAG_config__common__databases__vectorstore__weaviate_port=8080
+      #- RAG_config__common__databases__vectorstore__weaviate_grpc_port=50051
+      - FOO=bar
+    ports:
+      - 8000:8000
+    #networks:
+    #  - rag-network
+    volumes:
+      - rag_data:/app/data/rag-sql-database
+      - ./rag-config.yaml:/app/rag-config.yaml:ro
+
+  #
+  # (optional) Proxy for Ollama
+  #
+
+  #ollama-client-proxy:
+  #  image: ollama-client-proxy:latest
+  #  container_name: ollama-client-proxy
+  #  build:
+  #    context: .
+  #    dockerfile: ollama-client-proxy-Dockerfile
+  #  environment:
+  #    AUTH_HEADER_VALUE: 'Bearer my-priv-toke-...'    # setting key in rag-config.yaml is preferred
+  #  ports:
+  #    - 11434:11434
+
+
+  #
+  # vector database
+  #
+  weaviate:
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --scheme
+      - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.29.2
+    container_name: weaviate
+    ports:
+      - 8080:8080
+      - 50051:50051
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      ENABLE_API_BASED_MODULES: 'true'
+      #DEFAULT_VECTORIZER_MODULE: 'none'
+      CLUSTER_HOSTNAME: 'node1'
+
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      # control disk usage warnings and actions like:
+      # "Set READONLY, disk usage currently at 90.16%, threshold set to 90.00%"
+      # Details: https://docs.weaviate.io/deploy/configuration/persistence#disk-pressure-warnings-and-limits
+      #DISK_USE_WARNING_PERCENTAGE: 80    # default
+      #DISK_USE_READONLY_PERCENTAGE: 90    # default
+
+    #networks:
+    #  - rag-network
+
+  # searxng:
+  #   image: docker.io/searxng/searxng:latest
+  #   volumes:
+  #     - ./searxng:/etc/searxng:rw
+  #     - ./settings.yml:/etc/searxng/settings.yml:ro
+  #   ports:
+  #     - 4000:8080
+  #   networks:
+  #     - rag-network
+  #   restart: unless-stopped
+
+  #
+  # AI frontend
+  #
+  perplexica:
+    #image: itzcrazykns1337/perplexica:main
+    #image: itzcrazykns1337/perplexica:feature-flexible-ollama
+    image: opendevopsrepo/grafana-with-plugins:perplexica-feature-flexible-ollama
+    container_name: perplexica
+    #build:
+    #  context: .
+    #  dockerfile: app.dockerfile
+    environment:
+      #- SEARXNG_API_URL=http://host.docker.internal:8000
+      #- SEARXNG_API_URL=http://172.16.44.13:8000
+      - SEARXNG_API_URL=http://172.17.0.1:8000
+      #
+      #- SEARXNG_API_URL=http://searxng:8080
+      #- SEARXNG_API_URL=http://host.docker.internal:8000
+      #- SEARXNG_API_URL=https://search.rhscz.eu
+      #- SEARXNG_API_URL=https://searx.rhscz.eu/
+    ports:
+      - 3000:3000
+    #networks:
+    #  - rag-network
+    volumes:
+      - perplexica_data:/home/perplexica/data
+      - perplexica_uploads:/home/perplexica/uploads
+      - ./perplexica-config.toml:/home/perplexica/config.toml:ro
+    restart: unless-stopped
+
+#networks:
+#  rag-network:
+
+
+
+volumes:
+  rag_data:
+    driver: local
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/rag-data
+
+  weaviate_data:
+    driver: local
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/rag-vectorstore-weaviate-data
+ 
+  perplexica_data:  #perplexica-backend-dbstore:
+    driver: local
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/perplexica-data
+
+  perplexica_uploads:
+    driver: local
+  #  driver_opts:
+  #    o: bind
+  #    type: none
+  #    device: ./data/perplexica-uploads
+

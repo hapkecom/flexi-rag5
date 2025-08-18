@@ -1,0 +1,47 @@
+#
+# rag
+#
+fastapi>=0.116.1
+uvicorn[standard]>=0.35.0
+websockets>=15.0.1
+pydantic>=2.7.0
+langgraph>=0.1.7
+langserve>=0.2.2
+# Add any other dependencies you have
+pyyaml>=6.0.1
+shortuuid>=1.0.13
+async-lru>=2.0.4
+dynaconf>=3.2.6
+lxml
+chardet
+pypdf
+
+# vector databases
+weaviate-client
+langchain-weaviate
+langchain-ollama
+chromadb>=0.5.4
+
+# sql databases
+# (sqlite3 module is included in the standard library)
+psycopg2-binary>=2.9.9
+#mysql-connector-python>=9.0.0
+# pip + sudo apt-get install -y libmariadb-dev
+#mariadb>=1.1.10
+
+# for testing
+ragas>=0.1.17
+
+# from https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_adaptive_rag/
+langchain>=0.2.7
+langchain_community
+langchain-openai>=0.1.15
+langchain-cohere>=0.1.9
+langchainhub>=0.1.20
+
+tavily-python>=0.3.3
+tiktoken>=0.7.0
+
+# indirect requirement of langchain_community/document_loaders/web_base.py
+beautifulsoup4>=4.12.3
+

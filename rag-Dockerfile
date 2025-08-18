@@ -1,0 +1,43 @@
+#
+# Dockerfile for oci image of RAG app
+#
+
+# Define a build argument for the base image, defaulting to an Ubuntu-based Python image
+ARG BASE_IMAGE=python:3.11-slim-bullseye
+
+# Use the base image
+FROM ${BASE_IMAGE}
+
+# Configure APT --> HERE THE WARNINGS 'debconf: unable to initialize frontend: Dialog' ARE NOT DISPLAYED
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y \
+    apt-utils \
+    bash \
+    curl \
+    less \
+    net-tools \
+    procps \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory
+WORKDIR /app
+
+# Set environment variables
+#   PYTHONDONTWRITEBYTECODE=1   Prevent .pyc file creation  - Cleaner, smaller, and slightly faster builds
+#   PYTHONUNBUFFERED=1          Disable output buffering    - Immediate log output for better observability
+ENV PYTHONDONTWRITEBYTECODE=1 \
+	PYTHONUNBUFFERED=1
+
+# Copy the requirements file and install dependencies
+COPY rag-src/requirements.txt rag-src/
+RUN pip install --no-cache-dir -r rag-src/requirements.txt
+
+# Copy configuration
+COPY rag-default-config.yaml ./
+
+# Copy the application source code
+COPY rag-src/ ./rag-src
+
+# Set the default command (optional, depends on your app)
+CMD ["python", "rag-src/main.py"]
+

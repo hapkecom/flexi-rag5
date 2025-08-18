@@ -1,0 +1,16 @@
+#
+# Dockerfile for oci image of Ollama Client Proxy
+#
+
+# Define a build argument for the base image, defaulting to an nginx image
+ARG BASE_IMAGE=nginx:alpine
+
+# Use the base image
+FROM ${BASE_IMAGE}
+
+COPY ollama-client-proxy-nginx.conf /etc/nginx/nginx.conf.template
+#COPY ollama-client-proxy-nginx.conf /etc/nginx/nginx.conf
+
+CMD envsubst '${AUTH_HEADER_VALUE}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+#CMD nginx -g 'daemon off;'
+

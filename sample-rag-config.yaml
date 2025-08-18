@@ -1,0 +1,173 @@
+# here you can overwrite values of the rag-default-values.yaml
+
+config:
+  common:
+    # LLMs used for the response generation and other tasks
+    chat_llms:
+      # Instance(s) of (subtype of) type langchain_core.language_models.chat_models.BaseChatModel
+      #
+      # class=<module>.<chat-class>
+
+      # default LLM
+      Chat_default_llm:
+        class: langchain_openai.ChatOpenAI        
+        args:
+          base_url: "https://api.openai.com/v1"
+          api_key: "sk-..."
+          model_name: "gpt-4o-mini"
+          temperature: 0.2
+          streaming: False
+      #Chat_default_llm:
+      #  class: langchain_ollama.ChatOllama
+      #  args:
+      #    base_url: "http://ollama.aisbreaker.org:21434"
+      #    kwargs_header_authorization: "Bearer my-priv-toke-..."
+      #    model: "qwen3:0.6b"
+      #    temperature: 0.2
+      #    streaming: False
+
+
+      # OpenAI Chat - NOT USED BY DEFAULT!
+      # For args/parameters see: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/chat_models/base.py
+      NOT_USED_ChatOpenAI_default_llm:
+        class: langchain_openai.ChatOpenAI        
+        args:
+          # you can overwrite, e.g. "model_name" with environment variable:
+          #   export RAG_CONFIG__COMMON__DEFAULT_LLM_WITH_STREAMING__ChatOpenAI__args__model_name="gpt-ais-invalid-model"
+          model_name: "gpt-4o-mini"
+          temperature: 0.2
+          streaming: False
+          #api_key: "<YOUR_OPENAI_API_KEY>"
+          #api_key: "${env.OPENAI_API_KEY}"
+          api_key: "sk-..."
+          base_url: "https://api.openai.com/v1"
+          #base_url: "https://your.openai-compatible-api.example.com/v1"
+
+      # Ollama Chat - NOT USED BY DEFAULT!
+      NOT_USED_ChatOllama_default_llm:
+        class: langchain_ollama.ChatOllama
+        args:
+          # you can overwrite, e.g. "model_name" with environment variable:
+          #   export RAG_CONFIG__COMMON__DEFAULT_LLM_WITH_STREAMING__ChatOpenAI__args__model_name="gpt-ais-invalid-model"
+          model: "qwen3:0.6b"
+          temperature: 0.2
+          streaming: False
+          base_url: "http://ollama.aisbreaker.org:21434"
+          # handling of 'kwargs_header_authorization' is a non-generic, dirty hack in llm_factory.py:
+          kwargs_header_authorization: "Bearer my-priv-toke-..."
+
+
+    # Embeddings LLM used indexing and for the retrieval
+    
+    # default embedding LLM
+    embedding_llm:
+      class: langchain_openai.embeddings.OpenAIEmbeddings
+      args:
+        base_url: "https://api.openai.com/v1"
+        api_key: "sk-..."
+        model: "text-embedding-3-small"
+    embedding_model_id: "openai/text-embedding-3-small-v101"
+    #embedding_llm:
+    #  class: langchain_ollama.OllamaEmbeddings
+    #  args:
+    #    base_url: "http://ollama.aisbreaker.org:21434"
+    #    kwargs_header_authorization: "Bearer my-priv-toke-..."
+    #    model: "jina/jina-embeddings-v2-base-de:latest"
+    #embedding_model_id: "ollama/jina/jina-embeddings-v2-base-de"
+
+
+    NOT_USED_embedding_llm_OPENAI:    # NOT USED BY DEFAULT!
+      # Instance of (subtype of) type langchain_core.embeddings.Embeddings
+      #
+      # class=<module>.<chat-class>
+
+      # OpenAI Embeddings
+      # For args/parameters see: https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/embeddings/base.py
+      class: langchain_openai.embeddings.OpenAIEmbeddings
+      args:
+        # Important: If the embedding model changes, the index must be rebuilt!!!
+        model: "text-embedding-3-small"
+        #api_key: "<YOUR_OPENAI_API_KEY>"
+        api_key: "sk-..."
+        base_url: "https://api.openai.com/v1"
+        #base_url: "https://api.openai.com/v1"
+        #base_url: "https://your.openai-compatible-api.example.com/v1"
+    NOT_USED_embedding_model_id_OPENAI: "openai/text-embedding-3-small-v101"
+
+    NOT_USED_embedding_llm_OLLAMA:    # NOT USED BY DEFAULT!
+      # Instance of (subtype of) type langchain_core.embeddings.Embeddings
+      #
+      # class=<module>.<chat-class>
+
+      # Ollama Embeddings
+      class: langchain_ollama.OllamaEmbeddings
+      args:
+        # Important: If the embedding model changes, the index must be rebuilt!!!
+        model: "jina/jina-embeddings-v2-base-de:latest"
+        base_url: "http://ollama.aisbreaker.org:21434"
+        # handling of 'kwargs_header_authorization' is a non-generic, dirty hack in llm_factory.py:
+        kwargs_header_authorization: "Bearer my-priv-toke-..."
+    NOT_USED_embedding_model_id_OLLAMA: "ollama/jina/jina-embeddings-v2-base-de"
+
+
+    #databases:
+    #  vectorstore:
+    #    # Weaviate - requires package: weaviate-client
+    #    class: langchain_community.vectorstores.Weaviate
+    #    weaviate_host: "weaviate"
+    #    weaviate_port: 8080
+    #    weaviate_grpc_port: 50051
+
+  rag_loading:
+    # minimim time between loading/indexing runs, in seconds
+    load_every_seconds: 3600        # 1 hour = 3600 seconds
+
+    # The following loader types are supported:
+    # - "BlobLoader" - to load content files
+    #     The "class" is of type langchain_community.document_loaders.[blob_loaders.schema.]BlobLoader.
+    #     The loader is used together with the DefaultBlobParser
+    #     (of type langchain_community.document_loaders.BaseBlobParser).
+    #     Example classes are:
+    #       - WgetBlobLoader
+    #       - langchain_community.document_loaders.blob_loaders.file_system.FileSystemBlobLoader
+    #       - langchain_community.document_loaders.blob_loaders.cloud_blob_loader.CloudBlobLoader
+    #         (supports AWS "s3://", Azure "az://", Google Cloud "gs://", and local file "file://" schemes)
+    # - "BaseLoader" - to load the documents
+    #     The "class" is of type langchain_community.document_loaders.BaseLoader
+    #     with is the base of all "normal" document loader in Langchain..
+    loaders:
+      # Test loaders
+      test-pdf-wgetblobloader-loader:
+        enabled: true
+      test-markdown-filesystemblobloader-loader:
+        enabled: true
+
+      # Load HTML documents from a website
+      html-example-hapke-com-loader:
+        enabled: true
+        type: "BlobLoader"
+        # class=<module>.<blob-loader-class>
+        class: document_loader_service.tools.WgetBlobLoader
+        args:
+          url: "https://hapke.com/"
+          base_url: "https://hapke.com/"
+          depth: 2
+          max_pages: 10
+          dir: "./"
+          # Optionally, provide a full command line to execute.
+          # In this command line, you can reference the other args as variables "${arg.<ARG-NAME>}".
+          #command: "wget -r -np -nH -nd -A '*.md' -P ./ -e robots=off --no-check-certificate --no-cache --no-cookies --header 'Authorization: token <YOUR GITHUB TOKEN>' https://api.github.com/repos/<YOUR REPO>/contents/<YOUR FOLDER>"
+
+
+
+
+  # rag_response:
+    #
+    # select the LLMs used for the response generation
+    #
+
+    #default_chat_llm: Chat_default_llm
+    #default_chat_llm_with_streaming: Chat_default_llm
+    #document_grader_chat_llm: Chat_default_llm
+    #rewrite_question_chat_llm: Chat_default_llm
+
